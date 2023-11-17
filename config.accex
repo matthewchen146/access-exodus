@@ -1,0 +1,36 @@
+
+SOURCE_DSN: MS Access Database
+
+SOURCES {
+    Tasks: ./databases/SHOPDATA.ACCDB > task_types {
+
+        TaskID: id
+        TaskDescription: description
+        TaskApplicability: applicability
+        ServiceNo: service_no
+    }
+    Customer: ./databases/AUTOSHOP.ACCDB > customers {
+        CustID: old_id
+        Name: name
+        Address1: address
+    }
+}
+
+
+TARGETS {
+
+    task_types {
+        id: int primary key
+        description: text
+        applicability: text
+        service_no: int
+    }
+    customers {
+       
+        id: serial primary key
+        old_id: int
+        name: text
+        address: text
+    }
+    
+}
