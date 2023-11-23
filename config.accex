@@ -1,36 +1,42 @@
 
-SOURCE_DSN: MS Access Database
+SOURCE_DSN_PARAMS {
+    DSN: MS Access Database
+}
 
 SOURCES {
-    Tasks: ./databases/SHOPDATA.ACCDB > task_types {
+    Tasks {
 
-        TaskID: id
-        TaskDescription: description
-        TaskApplicability: applicability
-        ServiceNo: service_no
-    }
-    Customer: ./databases/AUTOSHOP.ACCDB > customers {
-        CustID: old_id
-        Name: name
-        Address1: address
+        DSN_PARAMS {
+            DBQ: ./databases/SHOPDATA.ACCDB
+        }
+        TARGET_TABLE: task_types
+        COLUMNS {
+            TaskID: id
+            TaskDescription: description
+            TaskApplicability: applicability
+            ServiceNo: service_no
+        }
     }
 }
 
+TARGET_DSN_PARAMS {
+    Driver: PostgreSQL Unicode
+    Server: localhost
+    Port: 8000
+    Database: postgres
+    Uid: postgres
+    Pwd: 123
+} 
 
 TARGETS {
 
     task_types {
-        id: int primary key
-        description: text
-        applicability: text
-        service_no: int
-    }
-    customers {
-       
-        id: serial primary key
-        old_id: int
-        name: text
-        address: text
+        COLUMNS {
+            id: int primary key
+            description: text
+            applicability: text
+            service_no: int
+        }
     }
     
 }
