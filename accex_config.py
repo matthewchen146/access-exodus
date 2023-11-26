@@ -59,10 +59,6 @@ class SourceTableBlock(BlockValue):
         super().__init__(*args, **kwargs)
     
     @property
-    def database(self) -> str:
-        return self['database']
-    
-    @property
     def target(self) -> str:
         return self['TARGET_TABLE']
 
@@ -128,10 +124,6 @@ class Config(dict):
         return TargetsBlock(self['TARGETS'])
 
     @property
-    def source_dsn(self) -> str:
-        return self['SOURCE_DSN'].value
-
-    @property
     def target_dsn_params(self) -> dict:
         return self['TARGET_DSN_PARAMS']
     
@@ -186,6 +178,8 @@ def parse_config(config_text: str) -> Config:
         t.add_parse_action(parse_action if parse_action is not None else block_parse_action)
         return t
 
+    ## target and source tables unused rn
+    
     target_column_record = record(column_name, column_type)
     target_table_name = identifier.copy().set_name('target_table_name')
     target_table = block(target_table_name, target_column_record)
@@ -217,7 +211,7 @@ def parse_config(config_text: str) -> Config:
     comment.set_name('comment')
 
     # access_transform_spec = pp.ZeroOrMore(comment.suppress() | misc_record | source_tables | target_tables | misc_block)
-    access_transform_spec = pp.ZeroOrMore(comment.suppress() | misc_record | target_tables | misc_block)
+    access_transform_spec = pp.ZeroOrMore(comment.suppress() | misc_record | misc_block)
     # access_transform_spec.add_parse_action(lambda toks: print('\n'.join([f'count: {str(len(tok))} - {str(tok)}' for tok in toks.as_list()])))
     access_transform_spec.add_parse_action(lambda toks: Config(toks.as_list()))
     access_transform_spec.set_fail_action(lambda s, loc, expr, err: print('CONFIG_FAIL', expr, loc, err))
