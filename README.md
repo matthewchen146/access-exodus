@@ -17,3 +17,4 @@ https://www.postgresql.org/ftp/odbc/versions/
 5. `poetry shell`
 6. `poetry env info` (should be 3.11.6, with path to local .venv)
 7. `poetry install`
+    - If no gui, do `poetry install --without gui`

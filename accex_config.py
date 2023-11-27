@@ -1,4 +1,6 @@
-from collections.abc import Iterator
+import os
+import sys
+import logging
 import pyparsing as pp
 from typing import Any, Callable, TypeVar, ItemsView
 from collections import Counter
@@ -63,7 +65,7 @@ class SourceTableBlock(BlockValue):
         return self['TARGET_TABLE']
 
     @property
-    def columns(self) -> dict:
+    def columns(self) -> dict[str, str]:
         return self['COLUMNS']
 
     @property
@@ -235,34 +237,59 @@ def write_config_file(config: Config, config_file_path: str):
     with open(config_file_path, 'w') as file:
         file.write(config_str)
 
+def find_config_path() -> str | None:
+    extension = ".accex"
+    for file_name in os.listdir():
+        if file_name.endswith(extension):
+            cwd = os.getcwd()
+            return os.path.join(cwd, file_name)
+    return None
+
+def resolve_config_path() -> str | None:
+    if len(sys.argv) > 1:
+        config_path_arg = sys.argv[1]
+        if os.path.exists(config_path_arg):
+            config_path = config_path_arg
+    if not config_path:
+        config_path = find_config_path()
+    return config_path
+
 if __name__ == '__main__':
 
-    print('------ testing accex config parser')
+    logging.basicConfig(level=logging.INFO)
 
-    with open('./config.accex', 'r') as file:
+    logging.info('testing accex config parser')
+
+    config_path: str | None = resolve_config_path()
+    
+    if not config_path:
+        raise ValueError("no config file could be found")
+
+    logging.info(f"reading config from [{config_path}]")
+    with open(config_path, 'r') as file:
 
         parsed_config = parse_config(file.read())
 
-    print('------ intitial parsed config\n', json.dumps(parsed_config, indent=4))
+    logging.info('intitial parsed config\n%s', json.dumps(parsed_config, indent=4))
 
     out_config = write_config(parsed_config)
 
-    print('------ written config\n', out_config)
+    logging.info('written config\n%s', out_config)
 
-    print('------ reparsing written config')
+    logging.info('reparsing written config')
 
     parsed_config_2 = parse_config(out_config)
 
-    print('------ reparsed config\n', json.dumps(parsed_config_2, indent=4))
+    logging.info('reparsed config\n%s', json.dumps(parsed_config_2, indent=4))
 
-    print('------ asserting equality')
+    logging.info('asserting equality')
 
     assert(Counter(parsed_config) == Counter(parsed_config_2))
 
-    print('------ assert successful')
+    # logging.info('assert successful')
 
-    print('------ writing config to file')
+    # logging.info('writing config to file')
 
-    write_config_file(parsed_config_2, 'misc/out_config.accex')
+    # write_config_file(parsed_config_2, 'misc/out_config.accex')
 
-    print('------ test finished')
+    logging.info('test finished')

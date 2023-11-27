@@ -1,22 +1,10 @@
 import asyncio
+import logging
 import json
 import pyodbc
 import aioodbc
 import accex_config
 from typing import Callable
-
-logger: Callable = print
-
-log_codes: dict = {
-    0: "---",
-    1: "WRN",
-    2: "ERR"
-}
-
-def log(*args, code: int = 0):
-    global log_codes
-    prefix = log_codes.get(code) or "UKN"
-    logger(f"{prefix} {' '.join([str(arg) for arg in args])}")
 
 async def conn_attributes(conn: pyodbc.Connection):
     pass
@@ -39,7 +27,7 @@ async def open_src_connection(new_src_conn_str: str) -> aioodbc.Connection:
     if src_conn is None or new_src_conn_str != src_conn_str:
         src_conn_str = new_src_conn_str
         await close_src_connection()
-        log(f'connecting via connection string [{src_conn_str}]')
+        logging.info(f'connecting via connection string [{src_conn_str}]')
         src_conn = await aioodbc.connect(dsn=src_conn_str)
         src_cur = await src_conn.cursor()
     return src_conn
@@ -52,7 +40,7 @@ async def open_tgt_connection(new_tgt_conn_str: str) -> aioodbc.Connection:
     if tgt_conn is None or new_tgt_conn_str != tgt_conn_str:
         tgt_conn_str = new_tgt_conn_str
         await close_tgt_connection()
-        log(f'connecting via connection string [{tgt_conn_str}]')
+        logging.info(f'connecting via connection string [{tgt_conn_str}]')
         tgt_conn = await aioodbc.connect(dsn=tgt_conn_str, after_created=conn_attributes, autocommit=True)
         tgt_cur = await tgt_conn.cursor()
     return tgt_conn
@@ -97,7 +85,7 @@ async def transfer_table(config: accex_config.Config, src_table_name: str, tgt_t
 
         tgt_table = config.targets[tgt_table_name]
 
-        log(f'validating source table [{src_table_name}]')
+        logging.info(f'validating source table [{src_table_name}]')
         
         src_table_columns: dict = src_table.columns
 
@@ -105,12 +93,12 @@ async def transfer_table(config: accex_config.Config, src_table_name: str, tgt_t
 
         src_dsn_params = {**config.source_dsn_params, **src_table.dsn_params}
         new_src_conn_str = create_conn_str(src_dsn_params)
-        log(f"connecting to source database")
+        logging.info(f"connecting to source database")
         await open_src_connection(new_src_conn_str)
         
         tgt_dsn_params = {**config.target_dsn_params, **tgt_table.dsn_params}
         new_tgt_conn_str = create_conn_str(tgt_dsn_params)
-        log(f'connecting to target database')
+        logging.info(f'connecting to target database')
         await open_tgt_connection(new_tgt_conn_str)
         
         # check if table exists in source
@@ -133,12 +121,12 @@ async def transfer_table(config: accex_config.Config, src_table_name: str, tgt_t
         # once validation is finished, create tables in the target
         # drop original table if that is in the settings
         await tgt_cur.execute(f'DROP TABLE IF EXISTS {tgt_table_name}')
-        log(f'creating target table [{tgt_table_name}]')
+        logging.info(f'creating target table [{tgt_table_name}]')
         
         await tgt_cur.execute(f'CREATE TABLE IF NOT EXISTS {tgt_table_name} ({",".join([f"{cname} {ctype}" for cname, ctype in tgt_table_columns.items()])})')
 
         # once table is created, get rows form source to insert
-        log(f'fetching rows from source table [{src_table_name}] with columns [{",".join([c for c in src_table_columns.keys()])}]')
+        logging.info(f'fetching rows from source table [{src_table_name}] with columns [{",".join([c for c in src_table_columns.keys()])}]')
         await src_cur.execute(f'SELECT {",".join([c for c in src_table_columns.keys()])} FROM {src_table_name}')
 
         src_rows = await src_cur.fetchall()
@@ -150,11 +138,11 @@ async def transfer_table(config: accex_config.Config, src_table_name: str, tgt_t
             src_rows
         )
 
-        log(f'finished insert into [{tgt_table_name}] from [{src_table_name}]')
+        logging.info(f'finished insert into [{tgt_table_name}] from [{src_table_name}]')
 
         return True
     except ValueError as error:
-        log('transfer failed:', error, code=2)
+        logging.error('transfer failed - %s', error)
         return False
 
 
@@ -167,32 +155,37 @@ async def transfer(config: accex_config.Config):
             if not success:
                 user_input = input(f"IN- transfer from [{src_table_name}] to [{tgt_table_name}] failed. skip table? (y/N)")
                 if user_input.lower() == 'y':
-                    log(f"skipping [{src_table_name}]")
+                    logging.info(f"skipping [{src_table_name}]")
                 else:
-                    log('cancelling transfer')
+                    logging.info('cancelling transfer')
                     break
                     
 
     finally:
 
         # close connections
-        log('closing connections')
+        logging.info('closing connections')
         await close_connections()
 
 
 if __name__ == "__main__":
 
+    logging.basicConfig(level=logging.INFO)
+
     async def main():
-        log('reading config')
+        config_path: str | None = accex_config.resolve_config_path()
     
-        config = accex_config.parse_config_file('config.accex')
+        if not config_path:
+            raise ValueError("no config file could be found")
+    
+        config = accex_config.parse_config_file(config_path)
 
-        log('config\n', json.dumps(config, indent=4))
+        logging.info('config\n', json.dumps(config, indent=4))
 
-        log('transfering tables')
+        logging.info('transfering tables')
 
         await transfer(config)
 
-        log('finished')
+        logging.info('finished')
 
     asyncio.run(main())
