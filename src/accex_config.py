@@ -246,6 +246,7 @@ def find_config_path() -> str | None:
     return None
 
 def resolve_config_path() -> str | None:
+    config_path = None
     if len(sys.argv) > 1:
         config_path_arg = sys.argv[1]
         if os.path.exists(config_path_arg):

@@ -107,7 +107,6 @@ async def transfer_table(config: accex_config.Config, src_table_name: str, tgt_t
             raise ValueError(f'Source database deos not have a table named [{src_table_name}]')
 
         # check if source columns are valid
-        # await src_cur.columns(table=source_table_name)
         true_src_columns = await get_column_name_dict(src_cur, table=src_table_name)# dict([(row.column_name, row) for row in await src_cur.fetchall()])
         for column_name in src_table_columns.keys():
             # check if column exists in access
@@ -153,7 +152,7 @@ async def transfer(config: accex_config.Config):
             tgt_table_name = src_table.target
             success = await transfer_table(config, src_table_name, tgt_table_name)
             if not success:
-                user_input = input(f"IN- transfer from [{src_table_name}] to [{tgt_table_name}] failed. skip table? (y/N)")
+                user_input = input(f"transfer from [{src_table_name}] to [{tgt_table_name}] failed. skip table? (y/N)")
                 if user_input.lower() == 'y':
                     logging.info(f"skipping [{src_table_name}]")
                 else:
@@ -180,7 +179,7 @@ if __name__ == "__main__":
     
         config = accex_config.parse_config_file(config_path)
 
-        logging.info('config\n', json.dumps(config, indent=4))
+        logging.info('config\n%s', json.dumps(config, indent=4))
 
         logging.info('transfering tables')
 
