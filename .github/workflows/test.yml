@@ -44,22 +44,9 @@ jobs:
 
       - name: Setup postgres
         run: |
-          $downloadUrl = "https://get.enterprisedb.com/postgresql/postgresql-16.1-1-windows-x64.exe"
-          $installerPath = "$env:TEMP\postgres.exe"
-          Invoke-WebRequest -Uri $downloadUrl -OutFile $installerPath
-          $postgresPath = "$env:ProgramFiles\PostgreSQL\16"
-          Start-Process -FilePath $installerPath -ArgumentList "/superpassword","123","/serverport","8000","/prefix","$postgresPath","/enable-components","server,commandlinetools","/quiet","/passive" -Wait
-          Remove-Item $installerPath -Force
-          # display install dir
-          Write-Host "Program Files"
-          dir "$env:ProgramFiles"
-          Write-Host "PostgreSQL"
-          dir "$env:ProgramFiles\PostgreSQL"
-          dir "$postgresPath"
-          dir "$postgresPath\bin"
           # start server
-          & "$postgresPath\bin\pg_ctl.exe" start -D "$postgresPath\data"
-          Write-Host "$postgresPath\bin\pg_ctl.exe" status -D "$postgresPath\data"
+          & "$env:PGBIN\pg_ctl.exe" start -D "$env:PGDATA"
+          & "$env:PGBIN\pg_ctl.exe" status -D "$env:PGDATA"
 
       - name: Install postgres ODBC driver
         run: |

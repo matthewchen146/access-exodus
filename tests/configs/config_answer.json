@@ -58,10 +58,10 @@
     "TARGET_DSN_PARAMS": {
         "Driver": "PostgreSQL Unicode",
         "Server": "localhost",
-        "Port": "8000",
+        "Port": "5432",
         "Database": "postgres",
         "Uid": "postgres",
-        "Pwd": "123"
+        "Pwd": "root"
     },
     "TARGETS": {
         "automobiles": {
