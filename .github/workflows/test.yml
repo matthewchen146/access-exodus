@@ -54,6 +54,7 @@ jobs:
           Write-Host "Program Files"
           dir "$env:ProgramFiles"
           Write-Host "PostgreSQL"
+          dir "$env:ProgramFiles\PostgreSQL"
           dir "$postgresPath"
           dir "$postgresPath\bin"
           # start server
