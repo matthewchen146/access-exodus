@@ -52,8 +52,8 @@ jobs:
           $installerPath = "$env:TEMP\psqlodbc\psqlodbc_x64.msi"
           Start-Process -FilePath $installerPath -ArgumentList "/quiet","/passive" -Wait
           # remove downloads
-          Remove-Item $extractPath -Force
-          Remove-Item $downloadPath -Force
+          if (Test-Path $extractPath) { Remove-Item $extractPath -Force -Recurse } else { Write-Host "Item $extractPath does not exist" }
+          if (Test-Path $downloadPath) { Remove-Item $downloadPath -Force } else { Write-Host "Item $downloadPath does not exist" }
 
       - name: Install Access Database Engine
         run: |
