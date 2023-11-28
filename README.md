@@ -18,10 +18,13 @@ See below for useful links on intalling and using ODBC drivers.
 
 ## Usage
 
-From source: `python src/accex_process <path-to-config-file>`
-- If a config file is not specified, the program will find one in the current working directory with the `.accex` extension.
+- With the executable: `accex <path-to-config-file>`
+    - If a config file is not specified, the program will find one in the current working directory with the `.accex` extension.
+- From source: `python src/accex_process <path-to-config-file>`
 
 ## Useful Links
+
+https://download.microsoft.com/download/2/4/3/24375141-E08D-4803-AB0E-10F2E3A07AAA/AccessDatabaseEngine_X64.exe
 
 https://www.connectionstrings.com/microsoft-access-accdb-odbc-driver/
 
