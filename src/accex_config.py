@@ -22,10 +22,6 @@ class RecordValue(str):
     
     def to_str(self) -> str:
         return f'{self.key}: ' + super().__str__()
-    
-    @property
-    def value(self):
-        return super().__str__()
 
     def set_key(self: TRecordValue, key: str) -> TRecordValue:
         self.key = key
@@ -37,9 +33,6 @@ class BlockValue(dict):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.key = ''
-    
-    def __str__(self):
-        return self.to_str(4)
     
     def to_str(self, indents: int = 4) -> str:
         prev_space = ''.join([' ' for _ in range(max(0, indents - 4))])
@@ -71,18 +64,6 @@ class SourceTableBlock(BlockValue):
     @property
     def dsn_params(self) -> dict:
         return self.get('DSN_PARAMS') or dict()
-
-    def to_str(self, indents: int = 4) -> str:
-        prev_space = ''.join([' ' for _ in range(max(0, indents - 4))])
-        space = ''.join([' ' for _ in range(indents)])
-        columns: dict = self['columns']
-        print('### converting SourceTables to string')
-        print('### columns', columns)
-        s = f"{self.key}: {self['database']} > {self['target']} {'{'}\n" + "\n".join(
-            [f"{space}{columns[column_name]}" for column_name in columns.keys()]
-        ) + f"\n{prev_space}{'}'}"
-        print('### output tables', s)
-        return s
 
 class SourcesBlock(BlockValue):
     def __init__(self, *args, **kwargs):
@@ -182,25 +163,24 @@ def parse_config(config_text: str) -> Config:
 
     ## target and source tables unused rn
     
-    target_column_record = record(column_name, column_type)
-    target_table_name = identifier.copy().set_name('target_table_name')
-    target_table = block(target_table_name, target_column_record)
-    target_tables = block('TARGETS', target_table)
-    target_tables.add_parse_action(lambda toks: (toks[0][0], TargetsBlock(toks[0][1]).set_key('TARGETS')))
+    # target_column_record = record(column_name, column_type)
+    # target_table_name = identifier.copy().set_name('target_table_name')
+    # target_table = block(target_table_name, target_column_record)
+    # target_tables = block('TARGETS', target_table)
+    # target_tables.add_parse_action(lambda toks: (toks[0][0], TargetsBlock(toks[0][1]).set_key('TARGETS')))
 
-    # source tables
-    source_column_name = identifier.copy().set_name('source_column_name')
-    source_column_target = identifier.copy().set_name('source_column_target')
-    source_column_record = record(source_column_name, source_column_target)
-    source_table_record = identifier + pp.Suppress(':') + pp.Word(path_chars + ' ') + pp.Suppress('>') + target_table_name
-    def source_table_parse_action(toks: pp.ParseResults) -> Any:
-        kn = toks[0][0]
-        return (kn, SourceTableBlock(database=toks[0][1].strip(), target=toks[0][2], columns=dict(toks[1].as_list())).set_key(kn))
-    source_table = block(source_table_record, source_column_record, source_table_parse_action)
-    source_tables = block('SOURCES', source_table)
-    source_tables.add_parse_action(lambda toks: (toks[0][0], SourcesBlock(toks[0][1]).set_key('SOURCES')))
-    # source_tables.set_fail_action(lambda s, loc, expr, err: print('source_tables_FAIL', expr, loc, err))
-    # source_tables.add_parse_action(lambda toks: [('sources', toks[0][1])])
+    # # source tables
+    # source_column_name = identifier.copy().set_name('source_column_name')
+    # source_column_target = identifier.copy().set_name('source_column_target')
+    # source_column_record = record(source_column_name, source_column_target)
+    # source_table_record = identifier + pp.Suppress(':') + pp.Word(path_chars + ' ') + pp.Suppress('>') + target_table_name
+    # def source_table_parse_action(toks: pp.ParseResults) -> Any:
+    #     kn = toks[0][0]
+    #     return (kn, SourceTableBlock(database=toks[0][1].strip(), target=toks[0][2], columns=dict(toks[1].as_list())).set_key(kn))
+    # source_table = block(source_table_record, source_column_record, source_table_parse_action)
+    # source_tables = block('SOURCES', source_table)
+    # source_tables.add_parse_action(lambda toks: (toks[0][0], SourcesBlock(toks[0][1]).set_key('SOURCES')))
+
 
     misc_record = record(identifier.copy().set_name('record_key') | special_identifier.copy().set_name('special_record_key'), pp.Word(pp.printables + ' '))
 
@@ -241,8 +221,7 @@ def find_config_path() -> str | None:
     extension = ".accex"
     for file_name in os.listdir():
         if file_name.endswith(extension):
-            cwd = os.getcwd()
-            return os.path.join(cwd, file_name)
+            return os.path.abspath(file_name)
     return None
 
 def resolve_config_path() -> str | None:
@@ -250,47 +229,10 @@ def resolve_config_path() -> str | None:
     if len(sys.argv) > 1:
         config_path_arg = sys.argv[1]
         if os.path.exists(config_path_arg):
-            config_path = config_path_arg
+            config_path = os.path.abspath(config_path_arg)
+        else:
+            raise ValueError(f"[{config_path_arg}] does not exist")
     if not config_path:
         config_path = find_config_path()
     return config_path
 
-if __name__ == '__main__':
-
-    logging.basicConfig(level=logging.INFO)
-
-    logging.info('testing accex config parser')
-
-    config_path: str | None = resolve_config_path()
-    
-    if not config_path:
-        raise ValueError("no config file could be found")
-
-    logging.info(f"reading config from [{config_path}]")
-    with open(config_path, 'r') as file:
-
-        parsed_config = parse_config(file.read())
-
-    logging.info('intitial parsed config\n%s', json.dumps(parsed_config, indent=4))
-
-    out_config = write_config(parsed_config)
-
-    logging.info('written config\n%s', out_config)
-
-    logging.info('reparsing written config')
-
-    parsed_config_2 = parse_config(out_config)
-
-    logging.info('reparsed config\n%s', json.dumps(parsed_config_2, indent=4))
-
-    logging.info('asserting equality')
-
-    assert(Counter(parsed_config) == Counter(parsed_config_2))
-
-    # logging.info('assert successful')
-
-    # logging.info('writing config to file')
-
-    # write_config_file(parsed_config_2, 'misc/out_config.accex')
-
-    logging.info('test finished')
