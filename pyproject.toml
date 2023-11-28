@@ -34,7 +34,10 @@ pytest-cov = "^4.1.0"
 
 [tool.pytest.ini_options]
 pythonpath = [ "src" ]
-addopts = "--cov=src"
+log_cli = true
+log_cli_level = 10
+log_file = "misc/pytest_log.txt"
+addopts = "--cov-report term-missing --cov=src --tb=line"
 
 [build-system]
 requires = ["poetry-core"]
