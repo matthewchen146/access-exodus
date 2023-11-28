@@ -1,6 +1,6 @@
 {
     "SOURCE_DSN_PARAMS": {
-        "DSN": "MS Access Database"
+        "Driver": "Microsoft Access Driver (*.mdb, *.accdb)"
     },
     "SOURCES": {
         "Automobile": {
