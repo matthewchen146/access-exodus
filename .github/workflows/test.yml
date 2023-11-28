@@ -31,9 +31,6 @@ jobs:
       # creates venv and installs dependencies
       - name: Install dependencies
         run: poetry install
-
-      - name: Activate venv
-        run: poetry shell
-
+      
       - name: Test accex config
-        run: python src/accex_config.py
+        run: poetry run python src/accex_config.py
