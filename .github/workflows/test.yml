@@ -63,5 +63,11 @@ jobs:
           Start-Process -FilePath $installerPath -ArgumentList "/quiet","/passive" -Wait
           Remove-Item $installerPath -Force
 
+      - name: Display ODBC drivers
+        run: Get-OdbcDriver
+      
+      - name: Display ODBC DSNs
+        run: Get-OdbcDsn
+
       - name: Run tests
         run: poetry run pytest
