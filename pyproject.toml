@@ -27,6 +27,15 @@ optional = true
 [tool.poetry.group.dev.dependencies]
 pyinstaller = "^6.2.0"
 
+
+[tool.poetry.group.test.dependencies]
+pytest = "^7.4.3"
+pytest-cov = "^4.1.0"
+
+[tool.pytest.ini_options]
+pythonpath = [ "src" ]
+addopts = "--cov=src"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
