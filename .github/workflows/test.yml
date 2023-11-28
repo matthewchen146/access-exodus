@@ -37,7 +37,7 @@ jobs:
           $downloadUrl = "https://get.enterprisedb.com/postgresql/postgresql-16.1-1-windows-x64.exe"
           $installerPath = "$env:TEMP\postgres.exe"
           Invoke-WebRequest -Uri $downloadUrl -OutFile $installerPath
-          Start-Process -FilePath $installerPath -ArgumentList "/quiet","/passive" -Wait
+          Start-Process -FilePath $installerPath -ArgumentList "/superpassword","123","/serverport","8000","/quiet","/passive" -Wait
           Remove-Item $installerPath -Force
 
       - name: Install postgres ODBC driver
