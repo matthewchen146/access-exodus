@@ -1,0 +1,110 @@
+SOURCE_DSN_PARAMS {
+    DSN: MS Access Database
+}
+
+SOURCES {
+    Automobile {
+        DSN_PARAMS {
+            DBQ: ./tests/databases/database_c.accdb
+        }
+        TARGET_TABLE: automobiles
+        COLUMNS {
+            AutoID: old_id
+            AutoVIN: vin
+            AutoMake: make
+            AutoModel: model
+            AutoYear: year
+            AutoLicPlate: plate
+            State: state
+            AutoMileage: mileage
+            Notes: notes
+        }
+    }
+    Employees {
+        DSN_PARAMS {
+            DBQ: ./tests/databases/database_a.accdb
+        }
+        TARGET_TABLE: employees
+        COLUMNS {
+            IDNumber: old_id
+            Name: name
+            Address1: address_1
+            Address2: address_2
+            City: city
+            State: state
+            ZipCode: zip
+            HomePhone: phone
+            NickName: nick_name
+            StartDate: start_date
+            JobClass: job_class
+            PayType: pay_type
+            PayRate: pay_rate
+            Password: password
+        }
+    }
+    Tasks {
+        DSN_PARAMS {
+            DBQ: ./tests/databases/database_b.accdb
+        }
+        TARGET_TABLE: task_types
+        COLUMNS {
+            TaskID: id
+            TaskDescription: description
+            TaskApplicability: applicability
+            ServiceNo: service_no
+        }
+    }
+}
+
+TARGET_DSN_PARAMS {
+    Driver: PostgreSQL Unicode
+    Server: localhost
+    Port: 8000
+    Database: postgres
+    Uid: postgres
+    Pwd: 123
+} 
+
+TARGETS {
+    automobiles {
+        COLUMNS {
+            id: serial primary key
+            old_id: text
+            vin: text
+            make: text
+            model: text
+            year: text
+            plate: text
+            state: text
+            mileage: int
+            notes: text
+        }
+    }
+    employees {
+        COLUMNS {
+            id: serial primary key
+            old_id: text
+            name: text
+            address_1: text
+            address_2: text
+            city: text
+            state: text
+            zip: text
+            phone: text
+            nick_name: text
+            start_date: date
+            job_class: text
+            pay_type: text
+            pay_rate: numeric
+            password: text
+        }
+    }
+    task_types {
+        COLUMNS {
+            id: int primary key
+            description: text
+            applicability: text
+            service_no: int
+        }
+    }
+}

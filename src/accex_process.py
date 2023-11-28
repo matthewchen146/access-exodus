@@ -145,18 +145,22 @@ async def transfer_table(config: accex_config.Config, src_table_name: str, tgt_t
         return False
 
 
-async def transfer(config: accex_config.Config):
+async def transfer(config: accex_config.Config, allow_prompts: bool = False):
 
     try:
         for src_table_name, src_table in config.sources.items():
             tgt_table_name = src_table.target
             success = await transfer_table(config, src_table_name, tgt_table_name)
             if not success:
-                user_input = input(f"transfer from [{src_table_name}] to [{tgt_table_name}] failed. skip table? (y/N)")
-                if user_input.lower() == 'y':
-                    logging.info(f"skipping [{src_table_name}]")
+                if allow_prompts:
+                    user_input = input(f"transfer from [{src_table_name}] to [{tgt_table_name}] failed. skip table? (y/N)")
+                    if user_input.lower() == 'y':
+                        logging.warn(f"skipping [{src_table_name}]")
+                    else:
+                        logging.warn('cancelling transfer')
+                        break
                 else:
-                    logging.info('cancelling transfer')
+                    logging.warn('cancelling transfer')
                     break
                     
 
