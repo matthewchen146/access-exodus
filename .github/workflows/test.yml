@@ -3,7 +3,7 @@ name: Test
 on: [push]
 
 jobs:
-  build:
+  test:
     runs-on: windows-latest
     strategy:
       matrix:
@@ -28,9 +28,40 @@ jobs:
       - name: Configure poetry
         run: poetry config virtualenvs.in-project true
 
-      # creates venv and installs dependencies
+      # create venv and install dependencies
       - name: Install dependencies
-        run: poetry install
-      
-      - name: Test accex config
-        run: poetry run python src/accex_config.py
+        run: poetry install --with test
+
+      - name: Setup postgres
+        run: |
+          $downloadUrl = "https://get.enterprisedb.com/postgresql/postgresql-16.1-1-windows-x64.exe"
+          $installerPath = "$env:TEMP\postgres.exe"
+          Invoke-WebRequest -Uri $downloadUrl -OutFile $installerPath
+          Start-Process -FilePath $installerPath -ArgumentList "/quiet","/passive" -Wait
+          Remove-Item $installerPath -Force
+
+      - name: Install postgres ODBC driver
+        run: |
+          $downloadUrl = "https://ftp.postgresql.org/pub/odbc/versions/msi/psqlodbc_16_00_0000-x64.zip"
+          $downloadPath = "$env:TEMP\psqlodbc.zip"
+          Invoke-WebRequest -Uri $downloadUrl -OutFile $downloadPath
+          # extract psqlodbc installer
+          $extractPath = "$env:TEMP\psqlodbc"
+          Expand-Archive -Path $downloadPath -DestinationPath $extractPath -Force
+          # run psqlodbc installer
+          $installerPath = "$env:TEMP\psqlodbc\psqlodbc_x64.msi"
+          Start-Process -FilePath $installerPath -ArgumentList "/quiet","/passive" -Wait
+          # remove downloads
+          Remove-Item $extractPath -Force
+          Remove-Item $downloadPath -Force
+
+      - name: Install Access Database Engine
+        run: |
+          $downloadUrl = "https://download.microsoft.com/download/2/4/3/24375141-E08D-4803-AB0E-10F2E3A07AAA/AccessDatabaseEngine_X64.exe"
+          $installerPath = "$env:TEMP\accessdatabaseengine.exe"
+          Invoke-WebRequest -Uri $downloadUrl -OutFile $installerPath
+          Start-Process -FilePath $installerPath -ArgumentList "/quiet","/passive" -Wait
+          Remove-Item $installerPath -Force
+
+      - name: Run tests
+        run: poetry run pytest
