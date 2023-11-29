@@ -119,7 +119,9 @@ def test_remove_comments():
     s = "# comment\nnot comment"
     assert accex_config.remove_comments(s) == "\nnot comment"
     s = "title\n look at this ##comment    \nbut \\#not this\n\n#\\this yes"
-    assert accex_config.remove_comments(s) == "title\n look at this \nbut \\#not this\n\n"
+    assert accex_config.remove_comments(s) == "title\n look at this \nbut #not this\n\n"
+    s = "the remainder \\#\\#text\\##\\#\\#\\#comment"
+    assert accex_config.remove_comments(s) == "the remainder ##text#"
 
 def test_replace_env_vars():
     test_env_vars = { "PASS": "123", "DB_PORT": "9000", "user_id": "candy", "host": "762.43.2.355" }

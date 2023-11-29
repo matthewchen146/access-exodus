@@ -131,7 +131,8 @@ class Config(dict):
 
 def remove_comments(s: str) -> str:
     pattern = r"(?<!\\)#.*"
-    return re.sub(pattern, '', s)
+    s = re.sub(pattern, '', s)
+    return re.sub(r"\\#", '#', s)
 
 def replace_env_vars(s: str) -> str:
     pattern = r"\$(?:{([a-zA-Z_]*)}|([a-zA-Z_]*))"
