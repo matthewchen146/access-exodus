@@ -2,6 +2,10 @@ name: Test
 
 on: [push]
 
+env:
+  POSTGRES_PORT: 5423
+  POSTGRES_PASSWORD: root
+
 jobs:
   test:
     # https://github.com/actions/runner-images/blob/main/images/windows/Windows2022-Readme.md
@@ -42,6 +46,9 @@ jobs:
       - name: Install dependencies
         run: poetry install --with test
         if: steps.cached-poetry-venv.outputs.cache-hit != 'true'
+      
+      # set postgres.conf parameters
+      # https://www.postgresql.org/docs/current/config-setting.html
 
       - name: Setup postgres
         run: |
