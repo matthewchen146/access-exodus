@@ -1,10 +1,14 @@
+import json
 import os
 import sys
 import logging
 import pyparsing as pp
 from typing import Any, Callable, TypeVar, ItemsView
-from collections import Counter
-import json
+import re
+import dotenv
+import argparse
+
+arg_parser: argparse.ArgumentParser | None = None
 
 def to_str(t: Any) -> str:
     return t.to_str() if callable(getattr(t, 'to_str', None)) else str(t) + '\n'
@@ -128,8 +132,27 @@ class Config(dict):
         return s
 
 
+def replace_env_vars(s: str) -> str:
+    pattern = r"\$(?:{([a-zA-Z_]*)}|([a-zA-Z_]*))"
+
+    def replace_env_var(match: re.Match) -> str:
+        env_var_name = match.group(1) or match.group(2)
+        if not env_var_name or len(env_var_name) == 0:
+            raise ValueError("invalid environment variable name")
+        env_var_value = os.getenv(env_var_name)
+        if not env_var_value:
+            raise ValueError(f"failed to get environment variable by name [{env_var_name}]")
+        return env_var_value
+
+    return re.sub(pattern, replace_env_var, s)
+
+
 # pp.ParserElement.set_default_whitespace_chars(' \t')
 def parse_config(config_text: str) -> Config:
+
+    dotenv.load_dotenv(override=True)
+
+    config_text = replace_env_vars(config_text)
 
     id_chars = pp.alphas + pp.nums + '_'
     type_chars = pp.alphas + pp.nums + '()'
@@ -182,10 +205,10 @@ def parse_config(config_text: str) -> Config:
     # source_tables.add_parse_action(lambda toks: (toks[0][0], SourcesBlock(toks[0][1]).set_key('SOURCES')))
 
 
-    misc_record = record(identifier.copy().set_name('record_key') | special_identifier.copy().set_name('special_record_key'), pp.Word(pp.printables + ' '))
+    misc_record = record(identifier.copy().set_name('record_key'), pp.Word(pp.printables + ' '))
 
     misc_block_recursive = pp.Forward()
-    misc_block = block(identifier.copy().set_name('block_key') | special_identifier.copy().set_name('special_block_key'), misc_block_recursive | misc_record)
+    misc_block = block(identifier.copy().set_name('block_key'), misc_block_recursive | misc_record)
     misc_block_recursive <<= misc_block
 
     # comment
@@ -207,7 +230,7 @@ def parse_config_file(config_file_path: str) -> Config:
     return parsed_config
 
 def write_config(config: Config) -> str:
-    config_str: str = to_str(config)
+    config_str: str = to_str(config).strip()
     
     return config_str
 
@@ -226,8 +249,9 @@ def find_config_path() -> str | None:
 
 def resolve_config_path() -> str | None:
     config_path = None
-    if len(sys.argv) > 1:
-        config_path_arg = sys.argv[1]
+    args = parse_args()
+    if args.config_path:
+        config_path_arg = args.config_path
         if os.path.exists(config_path_arg):
             config_path = os.path.abspath(config_path_arg)
         else:
@@ -236,3 +260,64 @@ def resolve_config_path() -> str | None:
         config_path = find_config_path()
     return config_path
 
+def setup_argparse() -> argparse.ArgumentParser:
+    global arg_parser
+    if arg_parser:
+        return arg_parser
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "config_path",
+        type=str,
+        help="path to a config file",
+        nargs="?"
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="parse config and output json",
+    )
+    parser.add_argument(
+        "--json-format",
+        action="store_true",
+        help="if json output is enabled, format it",
+    )
+    parser.add_argument(
+        "--out-file",
+        action="store",
+        type=str,
+        help="write output to specified file path",
+    )
+
+    arg_parser = parser
+    return parser
+
+def parse_args() -> argparse.Namespace:
+    return setup_argparse().parse_args()
+
+def main():
+    args = parse_args()
+    config_path = resolve_config_path()
+    if not config_path:
+        logging.info("no config file specified/found")
+        sys.exit(1)
+    config = parse_config_file(config_path)
+    out = ''
+    if args.json:
+        if args.json_format:
+            out = json.dumps(config, indent=4)
+        else:
+            out = json.dumps(config)
+    else:
+        out = write_config(config)
+
+    if args.out_file:
+        with open(args.out_file, 'w') as file:
+            file.write(out)
+    else:
+        print(out)
+
+def init():
+    if __name__ == "__main__":
+        main()
+
+init()
