@@ -20,9 +20,6 @@ class RecordValue(str):
     def __new__(self, s):
         self.key = ''
         return super().__new__(self, s)
-
-    # def __str__(self) -> str:
-    #     return self.to_str()
     
     def to_str(self) -> str:
         return f'{self.key}: ' + super().__str__()
@@ -132,6 +129,10 @@ class Config(dict):
         return s
 
 
+def remove_comments(s: str) -> str:
+    pattern = r"(?<!\\)#.*"
+    return re.sub(pattern, '', s)
+
 def replace_env_vars(s: str) -> str:
     pattern = r"\$(?:{([a-zA-Z_]*)}|([a-zA-Z_]*))"
 
@@ -149,6 +150,8 @@ def replace_env_vars(s: str) -> str:
 
 # pp.ParserElement.set_default_whitespace_chars(' \t')
 def parse_config(config_text: str) -> Config:
+
+    config_text = remove_comments(config_text)
 
     dotenv.load_dotenv(override=True)
 

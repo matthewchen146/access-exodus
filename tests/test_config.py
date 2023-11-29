@@ -113,12 +113,38 @@ def test_resolve_config_path():
         with pytest.raises(ValueError):
             accex_config.resolve_config_path()
 
+def test_remove_comments():
+    s = "Cool\n\ncool"
+    assert accex_config.remove_comments(s) == s
+    s = "# comment\nnot comment"
+    assert accex_config.remove_comments(s) == "\nnot comment"
+    s = "title\n look at this ##comment    \nbut \\#not this\n\n#\\this yes"
+    assert accex_config.remove_comments(s) == "title\n look at this \nbut \\#not this\n\n"
+
 def test_replace_env_vars():
     test_env_vars = { "PASS": "123", "DB_PORT": "9000", "user_id": "candy", "host": "762.43.2.355" }
+    test_text = f"""
+TARGET_DSN_PARAMS {{
+    Driver: PostgreSQL Unicode
+    Server: $host
+    Port: ${{DB_PORT}}
+    Database: postgres
+    Uid: $user_id
+    Pwd: $PASS
+}}
+"""
+    answer_text = f"""
+TARGET_DSN_PARAMS {{
+    Driver: PostgreSQL Unicode
+    Server: {test_env_vars['host']}
+    Port: {test_env_vars['DB_PORT']}
+    Database: postgres
+    Uid: {test_env_vars['user_id']}
+    Pwd: {test_env_vars['PASS']}
+}}
+"""
     with patch.dict("os.environ", test_env_vars):
-        config_text = read_file("./tests/configs/config_env_vars.accex")
-        replaced_text = accex_config.replace_env_vars(config_text)
-        answer_text = read_file("./tests/configs/config_env_vars_answer.accex")
+        replaced_text = accex_config.replace_env_vars(test_text)
         assert answer_text == replaced_text
 
         # test empty env var
