@@ -4,10 +4,16 @@ import os
 import sys
 import logging
 import pyparsing as pp
-from typing import Any, Callable, TypeVar, ItemsView, KeysView, ValuesView
+from typing import Any, Callable, TypeVar, ItemsView, KeysView, ValuesView, Generic
 import re
 import dotenv
 import argparse
+
+class ValidationError(Exception):
+    pass
+
+TConfig = TypeVar("TConfig", bound="Config")
+TBlockValue = TypeVar('TBlockValue', bound='BlockValue')
 
 target_default_schema = "public"
 
@@ -25,13 +31,26 @@ class TargetTablePointer:
         self.table_name = table_name
     
     def __str__(self) -> str:
-        return "TargetTablePointer<" + ((self.schema_name and f"{self.schema_name}.") or "") + self.table_name + ">"
+        return f"TargetTablePointer<{self.to_sql_str()}>"
     
     def __eq__(self, __value: object) -> bool:
         return self.schema_name == __value.schema_name and self.table_name == __value.table_name
     
     def __hash__(self) -> int:
         return hash((self.schema_name, self.table_name))
+    
+    def to_sql_str(self) -> str:
+        return ((self.schema_name and f"{self.schema_name}.") or "") + self.table_name
+    
+    def get_columns_block(self, config: TConfig) -> TBlockValue:
+        cols = config.targets[self.table_name].columns
+        return cols
+    
+    def validate(self, config: TConfig):
+        if not self.table_name: raise ValidationError("Missing table name")
+        if not self.schema_name: raise ValidationError("Missing schema name")
+        # FIXME: take into account schema
+        if self.table_name not in config.targets: raise ValidationError(f"{str(self)} does not point to a table in TARGETS")
 
 class TargetColumnPointer:
     def __init__(self, column_name: str, table_name: str, schema_name: str = get_target_default_schema()) -> None:
@@ -61,6 +80,11 @@ class TargetColumnPointer:
 
     # def __eq__(self, __value: object) -> bool:
     #     return self.sc
+    def validate(self, config: TConfig):
+        tgt_table_cols = self.table.get_columns_block(config)
+        # assert column name in target table
+        if self.column_name not in tgt_table_cols:
+            raise ValidationError(f'{str(self.table)} deos not have a column named [{self.column_name}]')
 
 class TargetRowPointer:
     match_directives = {
@@ -73,11 +97,36 @@ class TargetRowPointer:
 
     def __str__(self) -> str:
         return f"TargetRowPointer<{str(self.select_column)}, match {self.match_directive}>"
+    
+    def validate(self, config: TConfig):
+        self.select_column.validate(config)
 
+class SourceColumnMapFunction:
+    """Source column function that transforms a source column value to another value before inserting to a target
+    """
+    def __init__(self, to_column: TargetColumnPointer, with_column: TargetColumnPointer, from_row: TargetRowPointer) -> None:
+        self.to_column = to_column
+        self.with_column = with_column
+        self.from_row = from_row
+    
+    def __str__(self) -> str:
+        return f"SourceColumnMapFunction<to {str(self.to_column)} WITH {str(self.with_column)} FROM {str(self.from_row)}>"
+
+    @property
+    def table(self) -> TargetTablePointer:
+        return self.to_column.table
+    
+    def validate(self, config: TConfig):
+        self.with_column.validate(config)
+        self.from_row.validate(config)
+        self.to_column.validate(config)
+
+# FIXME: rename these
 TRecordValue = TypeVar('TRecordValue', bound='RecordValue')
+TRecordValueValue = TypeVar('TRecordValueValue')
 
-class RecordValue(str):
-    def __init__(self, v, key : str = '') -> None:
+class RecordValue(str, Generic[TRecordValueValue]):
+    def __init__(self, v : TRecordValueValue, key : str = '') -> None:
         self.key = key
         self.value = v
         self.original_value = v
@@ -96,13 +145,22 @@ class RecordValue(str):
         self.value = value
         return self
 
-TBlockValue = TypeVar('TBlockValue', bound='BlockValue')
+
 
 class BlockValue(dict):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.key = ''
     
+    def items(self) -> ItemsView[str, RecordValue | TBlockValue]:
+        return super().items()
+    
+    def keys(self) -> KeysView[str]:
+        return super().keys()
+
+    def values(self) -> ValuesView[RecordValue | TBlockValue]:
+        return super().values()
+
     def to_str(self, indents: int = 4) -> str:
         prev_space = ''.join([' ' for _ in range(max(0, indents - 4))])
         space = ''.join([' ' for _ in range(indents)])
@@ -117,50 +175,55 @@ class BlockValue(dict):
         self.key = key
         return self
 
-TSourceTableBlockColumns = TypeVar('TSourceTableBlockColumns', bound='SourceTableBlock.Columns')
+TSourceTableBlockColumnsValue = RecordValue[TargetColumnPointer | SourceColumnMapFunction]
+
+class SourceTableBlockColumns(BlockValue):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.target_table : TargetTablePointer | None = None
+        self.target_table_deps = set()
+        for k, v in self.items():
+            self[k] = v
+
+    def __getitem__(self, __key: str) -> TSourceTableBlockColumnsValue:
+        return super().__getitem__(__key)
+
+    def __setitem__(self, __key: Any, __value: Any) -> None:
+        # parse value of each record
+        if not isinstance(__value, RecordValue):
+            __value = RecordValue(__value, key=__key)
+        super().__setitem__(__key, __value)
+
+    def items(self) -> ItemsView[str, TSourceTableBlockColumnsValue]:
+        return super().items()
+    
+    def keys(self) -> KeysView[str]:
+        return super().keys()
+
+    def values(self) -> ValuesView[TSourceTableBlockColumnsValue]:
+        return super().values()
+
+    def process_columns(self) -> None:
+        self.target_table_deps.clear()
+        for r in self.values():
+            if isinstance(r.value, TargetColumnPointer):
+                r.value.table = self.target_table
+            elif isinstance(r.value, SourceColumnMapFunction):
+                r.value.to_column.table = self.target_table
+                self.target_table_deps.add(self.target_table)
+            else:
+                parsed_source_column_value = parse_source_column_function(r.value)[0]
+                r.value = parsed_source_column_value
+                # check dependent tables
+                if isinstance(r.value, SourceColumnMapFunction):
+                    r.value.to_column.table = self.target_table
+                    self.target_table_deps.add(r.value.with_column.table)
+                elif isinstance(r.value, TargetColumnPointer):
+                    r.value.table = self.target_table
 
 # contains database, target, and columns
 class SourceTableBlock(BlockValue):
-    class Columns(BlockValue):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.target_table : TargetTablePointer | None = None
-            self.target_table_deps = set()
-            for k, v in self.items():
-                self[k] = v
-
-        def __getitem__(self, __key: str) -> RecordValue:
-            return super().__getitem__(__key)
-
-        def __setitem__(self, __key: Any, __value: Any) -> None:
-            # parse value of each record
-            if not isinstance(__value, RecordValue):
-                __value = RecordValue(__value, key=__key)
-            super().__setitem__(__key, __value)
-
-        def items(self) -> ItemsView[str, RecordValue]:
-            return super().items()
-        
-        def values(self) -> ValuesView[RecordValue]:
-            return super().values()
-
-        def process_columns(self) -> None:
-            self.target_table_deps.clear()
-            for r in self.values():
-                if isinstance(r.value, TargetColumnPointer):
-                    r.value.table = self.target_table
-                elif isinstance(r.value, SourceColumnMapFunction):
-                    r.value.to_column.table = self.target_table
-                    self.target_table_deps.add(self.target_table)
-                else:
-                    parsed_source_column_value = parse_source_column_function(r.value)[0]
-                    r.value = parsed_source_column_value
-                    # check dependent tables
-                    if isinstance(r.value, SourceColumnMapFunction):
-                        r.value.to_column.table = self.target_table
-                        self.target_table_deps.add(r.value.with_column.table)
-                    elif isinstance(r.value, TargetColumnPointer):
-                        r.value.table = self.target_table
+    Columns = SourceTableBlockColumns
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -169,8 +232,8 @@ class SourceTableBlock(BlockValue):
     
     def __setitem__(self, __key: Any, __value: Any) -> None:
         if __key == "COLUMNS":
-            if not isinstance(__value, SourceTableBlock.Columns):
-                __value : SourceTableBlock.Columns = SourceTableBlock.Columns(__value)
+            if not isinstance(__value, SourceTableBlockColumns):
+                __value : SourceTableBlockColumns = SourceTableBlockColumns(__value)
                 if self.target:
                     __value.target_table = self.target
                     __value.process_columns()
@@ -189,8 +252,8 @@ class SourceTableBlock(BlockValue):
             # fix columns
             if "COLUMNS" in self:
                 c = self["COLUMNS"]
-                if not isinstance(c, SourceTableBlock.Columns):
-                    # c = SourceTableBlock.Columns(__value, self.target_table)
+                if not isinstance(c, SourceTableBlockColumns):
+                    # c = SourceTableBlockColumns(__value, self.target_table)
                     self["COLUMNS"] = c
                 else:
                     c.target_table = self.target
@@ -205,7 +268,7 @@ class SourceTableBlock(BlockValue):
         return None if "TARGET_TABLE" not in self else self["TARGET_TABLE"].value
 
     @property
-    def columns(self) -> TSourceTableBlockColumns:
+    def columns(self) -> SourceTableBlockColumns:
         return self['COLUMNS']
 
     @property
@@ -215,6 +278,21 @@ class SourceTableBlock(BlockValue):
     @property
     def target_table_deps(self) -> set[TargetTablePointer]:
         return self.columns.target_table_deps
+
+    def validate(self, config: TConfig):
+        if "COLUMNS" not in self: raise ValidationError("Missing COLUMNS")
+        for column in ((v.value) for v in self.columns.values()):
+            if isinstance(column, TargetColumnPointer):
+                column.validate(config)
+            elif isinstance(column, SourceColumnMapFunction):
+                column.validate(config)
+            else:
+                raise ValidationError(f"Column should be a TargetColumnPointer or Function, got [{column}]")
+        if "TARGET_TABLE" in self:
+            r: RecordValue = self["TARGET_TABLE"]
+            if not isinstance(r, RecordValue): raise ValidationError(f"TARGET_TABLE should be a RecordValue, got [{r}]")
+            if not isinstance(r.value, TargetTablePointer): raise ValidationError(f"TARGET_TABLE record should be a TargetTablePointer, got [{r.value}]")
+            r.value.validate(config)
 
 class SourcesBlock(BlockValue):
     def __init__(self, *args, **kwargs):
@@ -237,32 +315,36 @@ class SourcesBlock(BlockValue):
     def values(self) -> ValuesView[SourceTableBlock]:
         return super().values()
 
-class SourceColumnMapFunction:
-    """Source column function that transforms a source column value to another value before inserting to a target
-    """
-    def __init__(self, to_column: TargetColumnPointer, with_column: TargetColumnPointer, from_row: TargetRowPointer) -> None:
-        self.to_column = to_column
-        self.with_column = with_column
-        self.from_row = from_row
-    
-    def __str__(self) -> str:
-        return f"SourceColumnMapFunction<to {str(self.to_column)} WITH {str(self.with_column)} FROM {str(self.from_row)}>"
+    def validate(self, config: TConfig):
+        for k, v in self.items():
+            v.validate(config)
 
-    @property
-    def table(self) -> TargetTablePointer:
-        return self.to_column.table
+class TargetTableBlockColumns(BlockValue):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    
+    def items(self) -> ItemsView[str, RecordValue]:
+            return super().items()
+        
+    def keys(self) -> KeysView[str]:
+        return super().keys()
+
+    def values(self) -> ValuesView[RecordValue]:
+        return super().values()
 
 class TargetTableBlock(BlockValue):
+    Columns = TargetTableBlockColumns
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     @property
-    def columns(self) -> dict:
+    def columns(self) -> TargetTableBlockColumns:
         return self['COLUMNS']
 
     @property
-    def dsn_params(self) -> dict:
-        return self.get('DSN_PARAMS') or dict()
+    def dsn_params(self) -> BlockValue:
+        return self.get('DSN_PARAMS') or BlockValue()
 
 class TargetsBlock(BlockValue):
     def __init__(self, *args, **kwargs):
@@ -339,6 +421,11 @@ class Config(dict):
             s += '\n'
         
         return s
+    
+    def validate(self):
+        if "SOURCES" not in self: raise ValidationError("Missing SOURCES")
+        self.sources.validate(self)
+        if "TARGETS" not in self: raise ValidationError("Missing TARGETS")
 
 
 def remove_comments(s: str) -> str:
@@ -491,8 +578,6 @@ def parse_config(config_text: str) -> Config:
     access_transform_spec.set_fail_action(lambda s, loc, expr, err: logging.error('failed to parse config\nexpr[%s]\nloc[%s]\nerr[%s]', expr, loc, err))
 
     config: Config = access_transform_spec.parse_string(config_text)[0]
-
-    
 
     return config
 
