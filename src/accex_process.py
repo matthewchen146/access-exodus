@@ -4,7 +4,9 @@ import json
 import pyodbc
 import aioodbc
 import accex_config
+from accex_config import ValidationError
 from typing import Callable
+from functools import cmp_to_key
 
 async def conn_attributes(conn: pyodbc.Connection):
     pass
@@ -84,12 +86,10 @@ async def transfer_table(config: accex_config.Config, src_table_name: str, tgt_t
         src_table = config.sources[src_table_name]
 
         tgt_table = config.targets[tgt_table_name]
-
-        logging.info(f'validating source table [{src_table_name}]')
         
-        src_table_columns: dict = src_table.columns
+        src_table_columns = src_table.columns
 
-        tgt_table_columns: dict = tgt_table.columns
+        true_tgt_table_columns = tgt_table.columns
 
         src_dsn_params = {**config.source_dsn_params, **src_table.dsn_params}
         new_src_conn_str = create_conn_str(src_dsn_params)
@@ -101,66 +101,105 @@ async def transfer_table(config: accex_config.Config, src_table_name: str, tgt_t
         logging.info(f'connecting to target database')
         await open_tgt_connection(new_tgt_conn_str)
         
+        logging.info(f'validating source table [{src_table_name}]')
         # check if table exists in source
         source_table_name_dict = await get_table_name_dict(src_cur)
         if src_table_name not in source_table_name_dict:
-            raise ValueError(f'Source database deos not have a table named [{src_table_name}]')
-
-        # check if source columns are valid
-        true_src_columns = await get_column_name_dict(src_cur, table=src_table_name)# dict([(row.column_name, row) for row in await src_cur.fetchall()])
-        for column_name in src_table_columns.keys():
-            # check if column exists in access
-            if column_name not in true_src_columns:
-                raise ValueError(f'Source [{src_table_name}] deos not have a column named [{column_name}]')
-            # check if column name is in the target table
-            tgt_column_name = src_table_columns[column_name]
-            if tgt_column_name not in tgt_table_columns:
-                raise ValueError(f'Target [{tgt_table_name}] deos not have a column named [{tgt_column_name}]')
+            raise ValidationError(f'Source database deos not have a table named [{src_table_name}]')
 
         # once validation is finished, create tables in the target
         # drop original table if that is in the settings
-        await tgt_cur.execute(f'DROP TABLE IF EXISTS {tgt_table_name}')
+        await tgt_cur.execute(f'DROP TABLE IF EXISTS {tgt_table_name} CASCADE')
         logging.info(f'creating target table [{tgt_table_name}]')
         
-        await tgt_cur.execute(f'CREATE TABLE IF NOT EXISTS {tgt_table_name} ({",".join([f"{cname} {ctype}" for cname, ctype in tgt_table_columns.items()])})')
+        await tgt_cur.execute(f'CREATE TABLE IF NOT EXISTS {tgt_table_name} ({",".join([f"{cname} {ctype}" for cname, ctype in true_tgt_table_columns.items()])})')
 
         # once table is created, get rows form source to insert
         logging.info(f'fetching rows from source table [{src_table_name}] with columns [{",".join([c for c in src_table_columns.keys()])}]')
-        await src_cur.execute(f'SELECT {",".join([c for c in src_table_columns.keys()])} FROM {src_table_name}')
+        await src_cur.execute(f'SELECT {",".join(c for c in src_table_columns.keys())} FROM {src_table_name}')
 
         src_rows = await src_cur.fetchall()
+
+        tgt_table_column_names = []
+
+        # get target columns and functions
+        col_index = 0
+        for k, v in src_table_columns.items():
+            if isinstance(v.value, accex_config.TargetColumnPointer):
+                tgt_table_column_names.append(v.value.column_name)
+            if isinstance(v.value, accex_config.SourceColumnMapFunction):
+                f = v.value
+                tgt_table_column_names.append(f.to_column.column_name)
+                await tgt_cur.execute(f"SELECT {f.from_row.select_column.column_name}, {f.with_column.column_name} FROM {f.with_column.table.to_sql_str()}")
+                with_rows = await tgt_cur.fetchall()
+                match_dict = dict(with_rows)
+                # print(json.dumps(match_dict, indent=2))
+                for row_index in range(len(src_rows)):
+                    # replace column in source row with a match using the source column value as key
+                    src_rows[row_index][col_index] = match_dict[src_rows[row_index][col_index]]
+                
+            col_index += 1
 
         # enable bulk insert. this may or may not work
         tgt_cur._impl.fast_executemany = True
         await tgt_cur.executemany(
-            f'INSERT INTO {tgt_table_name} ({",".join([c for c in src_table_columns.values()])}) VALUES ({",".join(["?" for _ in range(len(src_table_columns))])})',
+            f'INSERT INTO {tgt_table_name} ({",".join(c for c in tgt_table_column_names)}) VALUES ({",".join(["?" for _ in range(len(src_table_columns))])})',
             src_rows
         )
 
         logging.info(f'finished insert into [{tgt_table_name}] from [{src_table_name}]')
 
         return True
-    except ValueError as error:
-        logging.error('transfer failed - %s', error)
+    except ValueError as e:
+        logging.error("transfer failed - %s", e)
+        return False
+    except ValidationError as e:
+        logging.error("validation failed - %s", e)
+        return False
+    except Exception as e:
+        logging.error("unknown exception - %s", e)
         return False
 
 
 async def transfer(config: accex_config.Config, allow_prompts: bool = False):
 
     try:
-        for src_table_name, src_table in config.sources.items():
-            tgt_table_name = src_table.target
+        logging.info("validating config")
+        config.validate()
+    except ValidationError as e:
+        logging.error(f"config failed validation with error: [{e}]")
+        return
+    logging.info("validated config")
+
+    def source_table_order_compare(a, b):
+        ta: accex_config.SourceTableBlock = a[1]
+        tb: accex_config.SourceTableBlock = b[1]
+        # if ta depends on tb
+        # if so, tb should go before ta
+        if tb.target in ta.target_table_deps:
+            return 1
+        if ta.target in tb.target_table_deps:
+            return -1
+        return 0
+
+    source_tables = sorted(config.sources.items(), key=cmp_to_key(source_table_order_compare))
+
+    try:
+        for src_table_name, src_table in source_tables:
+            tgt_table = src_table.target
+            tgt_table_name = tgt_table.table_name
             success = await transfer_table(config, src_table_name, tgt_table_name)
             if not success:
+                logging.warn(f"transfer from [{src_table_name}] to {tgt_table} failed")
                 if allow_prompts:
-                    user_input = input(f"transfer from [{src_table_name}] to [{tgt_table_name}] failed. skip table? (y/N)")
+                    user_input = input(f"skip table? (y/N)")
                     if user_input.lower() == 'y':
                         logging.warn(f"skipping [{src_table_name}]")
                     else:
                         logging.warn('cancelling transfer')
                         break
                 else:
-                    logging.warn('cancelling transfer')
+                    logging.warn("cancelling transfer")
                     break
                     
 
@@ -183,7 +222,16 @@ if __name__ == "__main__":
     
         config = accex_config.parse_config_file(config_path)
 
-        logging.info('config\n%s', json.dumps(config, indent=4))
+        # config.validate()
+
+        # for source_table in config.sources.values():
+        #     for column in source_table.columns.values():
+        #         print(column.value)
+
+        # logging.info('config\n%s', json.dumps(config, indent=4))
+
+        
+        # if dependency, find all source tables that target that dependency
 
         logging.info('transfering tables')
 
