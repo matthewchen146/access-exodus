@@ -20,7 +20,7 @@ target_default_schema = "public"
 arg_parser: argparse.ArgumentParser | None = None
 
 def to_str(t: Any) -> str:
-    return t.to_str() if callable(getattr(t, 'to_str', None)) else str(t) + '\n'
+    return t.to_str() if callable(getattr(t, 'to_str', None)) else str(t)
 
 def get_target_default_schema() -> str:
     return target_default_schema
@@ -33,14 +33,18 @@ class TargetTablePointer:
     def __str__(self) -> str:
         return f"TargetTablePointer<{self.to_sql_str()}>"
     
+    def to_str(self) -> str:
+        # FIXME: add schema back when source block handles target table
+        return self.to_sql_str(with_schema=True)
+
     def __eq__(self, __value: object) -> bool:
-        return self.schema_name == __value.schema_name and self.table_name == __value.table_name
-    
+        return isinstance(__value, TargetTablePointer) and self.schema_name == __value.schema_name and self.table_name == __value.table_name
+
     def __hash__(self) -> int:
         return hash((self.schema_name, self.table_name))
     
-    def to_sql_str(self) -> str:
-        return ((self.schema_name and f"{self.schema_name}.") or "") + self.table_name
+    def to_sql_str(self, with_schema: bool = True) -> str:
+        return ((with_schema and self.schema_name and f"{self.schema_name}.") or "") + self.table_name
     
     def get_columns_block(self, config: TConfig) -> TBlockValue:
         cols = config.targets[self.table_name].columns
@@ -60,6 +64,9 @@ class TargetColumnPointer:
     def __init__(self, column_name: str, table: TargetTablePointer) -> None:
         self.table = table
         self.column_name = column_name
+    
+    def __eq__(self, __value: object) -> bool:
+        return isinstance(__value, TargetColumnPointer) and self.table == __value.table and self.column_name == __value.column_name
 
     @property
     def schema_name(self) -> str:
@@ -76,7 +83,10 @@ class TargetColumnPointer:
         self.table.table_name = value
 
     def __str__(self) -> str:
-        return "TargetColumnPointer<" + ((self.schema_name and f"{self.schema_name}.") or "") + (self.table_name and f"{self.table_name}." or "?.") + self.column_name + ">"
+        return f"TargetColumnPointer<{self.to_str()}>"
+
+    def to_str(self) -> str:
+        return ((self.schema_name and f"{self.schema_name}.") or "") + (self.table_name and f"{self.table_name}." or "?.") + self.column_name
 
     # def __eq__(self, __value: object) -> bool:
     #     return self.sc
@@ -95,11 +105,19 @@ class TargetRowPointer:
         self.select_column = select_column
         self.match_directive = match_directive
 
+    def __eq__(self, __value: object) -> bool:
+        return isinstance(__value, TargetRowPointer) and self.select_column == __value.select_column and self.match_directive == __value.match_directive
+
     def __str__(self) -> str:
         return f"TargetRowPointer<{str(self.select_column)}, match {self.match_directive}>"
     
+    def to_str(self) -> str:
+        return f"ROW({to_str(self.select_column)}, @{self.match_directive})"
+
     def validate(self, config: TConfig):
         self.select_column.validate(config)
+        if self.match_directive not in TargetRowPointer.match_directives:
+            raise ValidationError(f"Invalid match directive @{self.match_directive}, must be one of [{', '.join(k for k in TargetRowPointer.match_directives)}]")
 
 class SourceColumnMapFunction:
     """Source column function that transforms a source column value to another value before inserting to a target
@@ -109,8 +127,17 @@ class SourceColumnMapFunction:
         self.with_column = with_column
         self.from_row = from_row
     
+    def __eq__(self, __value: object) -> bool:
+        return isinstance(__value, SourceColumnMapFunction) and \
+            self.to_column == __value.to_column and \
+            self.with_column == __value.with_column and \
+            self.from_row == __value.from_row
+
     def __str__(self) -> str:
         return f"SourceColumnMapFunction<to {str(self.to_column)} WITH {str(self.with_column)} FROM {str(self.from_row)}>"
+
+    def to_str(self) -> str:
+        return f"{to_str(self.to_column)} WITH {to_str(self.with_column)} FROM {to_str(self.from_row)}"
 
     @property
     def table(self) -> TargetTablePointer:
@@ -131,11 +158,18 @@ class RecordValue(str, Generic[TRecordValueValue]):
         self.value = v
         self.original_value = v
 
+    def __eq__(self, __value: object) -> bool:
+        # print("CHECK EQUAL RECORD VALUE", to_str(self.value), to_str(__value.value))
+        return isinstance(__value, RecordValue) and self.value == __value.value
+
+    def __ne__(self, __value: object) -> bool:
+        return not self.__eq__(__value)
+
     def __str__(self) -> str:
         return str(self.value)
 
     def to_str(self) -> str:
-        return f'{self.key}: ' + self.__str__()
+        return f"{self.key}: {to_str(self.value)}"
 
     def set_key(self, key: str) -> TRecordValue:
         self.key = key
@@ -146,12 +180,23 @@ class RecordValue(str, Generic[TRecordValueValue]):
         return self
 
 
-
 class BlockValue(dict):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.key = ''
     
+    def __eq__(self, __value: object) -> bool:
+        if not isinstance(__value, BlockValue):
+            return False
+        for k, v in self.items():
+            if k not in __value:
+                return False
+            # print("  CHECK EQUAL", to_str(__value[k]), to_str(v))
+            if not __value[k] == v:
+                # print("  NOT EQUAL!")
+                return False
+        return True
+
     def items(self) -> ItemsView[str, RecordValue | TBlockValue]:
         return super().items()
     
@@ -166,7 +211,7 @@ class BlockValue(dict):
         space = ''.join([' ' for _ in range(indents)])
         s = f"{self.key} {'{'}\n" + "\n".join(
             [
-                f'{space}{to_str(value) if not isinstance(value, BlockValue) else value.to_str(indents + 4)}' for key, value in self.items()
+                f'{space}{to_str(value) if not isinstance(value, BlockValue) else value.to_str(indents + 4)}' for value in self.values()
             ]
         ) + f"\n{prev_space}{'}'}"
         return s
@@ -184,6 +229,11 @@ class SourceTableBlockColumns(BlockValue):
         self.target_table_deps = set()
         for k, v in self.items():
             self[k] = v
+
+    def __eq__(self, __value: object) -> bool:
+        if not isinstance(__value, SourceTableBlockColumns):
+            return False
+        return super().__eq__(__value)
 
     def __getitem__(self, __key: str) -> TSourceTableBlockColumnsValue:
         return super().__getitem__(__key)
@@ -230,10 +280,15 @@ class SourceTableBlock(BlockValue):
         for k, v in self.items():
             self[k] = v
     
+    def __eq__(self, __value: object) -> bool:
+        if not isinstance(__value, SourceTableBlock):
+            return False
+        return super().__eq__(__value)
+
     def __setitem__(self, __key: Any, __value: Any) -> None:
         if __key == "COLUMNS":
             if not isinstance(__value, SourceTableBlockColumns):
-                __value : SourceTableBlockColumns = SourceTableBlockColumns(__value)
+                __value : SourceTableBlockColumns = SourceTableBlockColumns(__value).set_key(__key)
                 if self.target:
                     __value.target_table = self.target
                     __value.process_columns()
@@ -241,13 +296,13 @@ class SourceTableBlock(BlockValue):
         elif __key == "TARGET_TABLE":
             if isinstance(__value, RecordValue):
                 if not isinstance(__value.value, TargetTablePointer):
-                    __value.value = TargetTablePointer(__value.value)
+                    __value.value = parse_target_table_pointer(__value.value)
                 super().__setitem__(__key, __value)
             elif isinstance(__value, TargetTablePointer):
                 super().__setitem__(__key, RecordValue(__value, key=__key))
             else:
                 # assuming string
-                __value = TargetTablePointer(__value)
+                __value = parse_target_table_pointer(__value)
                 super().__setitem__(__key, RecordValue(__value, key=__key))
             # fix columns
             if "COLUMNS" in self:
@@ -259,7 +314,7 @@ class SourceTableBlock(BlockValue):
                     c.target_table = self.target
                     c.process_columns()
         elif __key == "DSN_PARAMS":
-            super().__setitem__(__key, __value if isinstance(__value, BlockValue) else BlockValue(__value))
+            super().__setitem__(__key, __value if isinstance(__value, BlockValue) else BlockValue(__value).set_key(__key))
         else:
             super().__setitem__(__key, __value)
 
@@ -304,7 +359,7 @@ class SourcesBlock(BlockValue):
         if isinstance(__value, SourceTableBlock):
             super().__setitem__(__key, __value)
         else:
-            super().__setitem__(__key, SourceTableBlock(__value))
+            super().__setitem__(__key, SourceTableBlock(__value).set_key(__key))
 
     def __getitem__(self, __key: Any) -> SourceTableBlock:
         return super().__getitem__(__key)
@@ -352,11 +407,16 @@ class TargetsBlock(BlockValue):
         for k, v in super().items():
             self[k] = v
     
+    def __eq__(self, __value: object) -> bool:
+        if not isinstance(__value, TargetsBlock):
+            return False
+        return super().__eq__(__value)
+
     def __setitem__(self, __key: Any, __value: Any) -> None:
         if isinstance(__value, TargetTableBlock):
             super().__setitem__(__key, __value)
         else:
-            super().__setitem__(__key, TargetTableBlock(__value))
+            super().__setitem__(__key, TargetTableBlock(__value).set_key(__key))
     
     def __getitem__(self, __key: Any) -> TargetTableBlock:
         return super().__getitem__(__key)
@@ -373,11 +433,21 @@ class Config(dict):
         for k, v in self.items():
             self[k] = v
 
+    def __eq__(self, __value: object) -> bool:
+        if not isinstance(__value, Config):
+            return False
+        for k, v in self.items():
+            if k not in __value:
+                return False
+            if __value[k] != v:
+                return False
+        return True
+
     def __setitem__(self, __key: Any, __value: Any) -> None:
         if __key == "SOURCES":
-            super().__setitem__(__key, SourcesBlock(__value))
+            super().__setitem__(__key, SourcesBlock(__value).set_key(__key))
         elif __key == "TARGETS":
-            super().__setitem__(__key, TargetsBlock(__value))
+            super().__setitem__(__key, TargetsBlock(__value).set_key(__key))
         else:
             super().__setitem__(__key, __value)
 
@@ -414,9 +484,7 @@ class Config(dict):
     
         for key, value in self.items():
 
-            to_str_method = getattr(value, 'to_str', None)
-
-            s += (value.to_str() if callable(to_str_method) else str(value)) + '\n'
+            s += to_str(value) + '\n'
 
             s += '\n'
         
@@ -447,21 +515,39 @@ def replace_env_vars(s: str) -> str:
 
     return re.sub(pattern, replace_env_var, s)
 
+id_chars = pp.alphas + pp.nums + '_'
+target_schema_name = pp.Word(id_chars).set_name("target_schema_name")
+target_table_name = pp.Word(id_chars).set_name("target_table_name")
+target_table_parser = (pp.Opt(target_schema_name + pp.Suppress(".")) + target_table_name).set_name("target_table")
+
+def parse_target_table_pointer(s: str) -> TargetTablePointer:
+    global target_table_parser
+    toks = target_table_parser.parse_string(s)
+    if len(toks) == 2:
+        return TargetTablePointer(toks[1], toks[0])
+    else:
+        return TargetTablePointer(toks[0])
 
 source_column_function_parser: pp.ParserElement | None = None
 
 def parse_source_column_function(s: str):
     # example "customer_id WITH customers(id) FROM ROW(old_id, @value)"
-    id_chars = pp.alphas + pp.nums + '_'
+    global target_table_parser
     # create source column parser if not created
     global source_column_function_parser
     if not source_column_function_parser:
-        target_table_name = pp.Word(id_chars).set_name("target_table_name")
+        
         target_column_name = pp.Word(id_chars).set_name("target_column_name")
         
-        target_column_pointer = (pp.Opt(target_table_name + pp.Suppress(".")) + target_column_name).set_name("target_column_pointer")
+        target_column_pointer = (
+            (target_schema_name + pp.Suppress(".") + target_table_name + pp.Suppress(".") + target_column_name) |\
+            (target_table_name + pp.Suppress(".") + target_column_name) |\
+            (target_column_name)
+        ).set_name("target_column_pointer")
         def target_column_pointer_parse_action(toks: pp.ParseResults):
-            if len(toks) > 1:
+            if len(toks) == 3:
+                return TargetColumnPointer(toks[2], TargetTablePointer(toks[1], toks[0]))
+            elif len(toks) == 2:
                 # target column name and target table name
                 return TargetColumnPointer(toks[1], TargetTablePointer(toks[0]))
             else:
@@ -473,10 +559,9 @@ def parse_source_column_function(s: str):
         # FIXME: consider renaming this
         source_value_pointer = (pp.Suppress('@') + pp.oneOf(TargetRowPointer.match_directives.keys())).set_name("source_value_pointer")
         
-        target_row_pointer = (pp.Suppress(pp.Keyword("ROW")) + pp.Suppress("(") + target_column_pointer + pp.Suppress(",") + source_value_pointer + pp.Suppress(")")).set_name("row_function")
+        target_row_pointer = (pp.Suppress(pp.Keyword("ROW")) + pp.Suppress("(") + target_column_pointer + pp.Suppress(",") + source_value_pointer + pp.Suppress(")")).set_name("row_pointer")
         def target_row_pointer_parse_action(toks: pp.ParseResults):
-            # return [TargetColumnPointer(toks[0]), toks[1]]
-            return TargetRowPointer(select_column=toks[0], match_directive=source_value_pointer)
+            return TargetRowPointer(select_column=toks[0], match_directive=toks[1])
         target_row_pointer.add_parse_action(target_row_pointer_parse_action)
 
         
@@ -493,11 +578,11 @@ def parse_source_column_function(s: str):
             m: SourceColumnMapFunction = toks[0]
             return m.with_column.table == m.from_row.select_column.table
         map_function.add_condition(map_function_condition)
-
-        def parse_action(toks: pp.ParseResults):
-            return toks
     
         source_column_function_parser = (map_function | target_column_pointer) + (pp.StringEnd() | pp.LineEnd())
+        # source_column_function_parser = (map_function) + (pp.StringEnd() | pp.LineEnd())
+        # def parse_action(toks):
+        #     print("PARSING SORUCE COLUMN FUNC", ", ".join(to_str(t) for t in toks))
         # source_column_function_parser.add_parse_action(parse_action)
     
     return source_column_function_parser.parse_string(s)
@@ -568,12 +653,8 @@ def parse_config(config_text: str) -> Config:
     misc_block = block(identifier.copy().set_name('block_key'), misc_block_recursive | misc_record)
     misc_block_recursive <<= misc_block
 
-    # comment
-    comment = pp.Suppress('#') + pp.Word(pp.printables + ' ')
-    comment.set_name('comment')
-
     # access_transform_spec = pp.ZeroOrMore(comment.suppress() | misc_record | source_tables | target_tables | misc_block)
-    access_transform_spec = pp.ZeroOrMore(comment.suppress() | misc_record | misc_block)
+    access_transform_spec = pp.ZeroOrMore(misc_record | misc_block)
     access_transform_spec.add_parse_action(lambda toks: Config(toks.as_list()))
     access_transform_spec.set_fail_action(lambda s, loc, expr, err: logging.error('failed to parse config\nexpr[%s]\nloc[%s]\nerr[%s]', expr, loc, err))
 
