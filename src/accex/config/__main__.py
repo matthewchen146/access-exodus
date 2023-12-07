@@ -2,7 +2,7 @@ from . import parse_args, resolve_config_path, parse_config_file, write_config
 import sys, logging, json
 
 def main():
-    args = parse_args()
+    args = parse_args(True)
     config_path = resolve_config_path()
     if not config_path:
         logging.info("no config file specified/found")

@@ -653,7 +653,7 @@ def resolve_config_path() -> str | None:
         config_path = find_config_path()
     return config_path
 
-def setup_argparse() -> argparse.ArgumentParser:
+def setup_argparse(main: bool = False) -> argparse.ArgumentParser:
     global arg_parser
     if arg_parser:
         return arg_parser
@@ -664,26 +664,27 @@ def setup_argparse() -> argparse.ArgumentParser:
         help="path to a config file",
         nargs="?"
     )
-    parser.add_argument(
-        "--json",
-        action="store_true",
-        help="parse config and output json",
-    )
-    parser.add_argument(
-        "--json-format",
-        action="store_true",
-        help="if json output is enabled, format it",
-    )
-    parser.add_argument(
-        "--out-file",
-        action="store",
-        type=str,
-        help="write output to specified file path",
-    )
+    if main:
+        parser.add_argument(
+            "--json",
+            action="store_true",
+            help="parse config and output json",
+        )
+        parser.add_argument(
+            "--json-format",
+            action="store_true",
+            help="if json output is enabled, format it",
+        )
+        parser.add_argument(
+            "--out-file",
+            action="store",
+            type=str,
+            help="write output to specified file path",
+        )
 
     arg_parser = parser
     return parser
 
-def parse_args() -> argparse.Namespace:
-    return setup_argparse().parse_args()
+def parse_args(main: bool = False) -> argparse.Namespace:
+    return setup_argparse(main).parse_args()
 
