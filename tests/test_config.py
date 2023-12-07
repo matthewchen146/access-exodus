@@ -5,11 +5,9 @@ import sys
 import random
 import string
 import logging
-from collections import Counter
 from unittest.mock import patch
 from util import CWDContext
-import accex_config
-
+import accex.config
 
 def read_file(path: str) -> str:
     s = ""
@@ -87,12 +85,12 @@ def test_config_class():
 def test_find_config_path():
     example_config_file_name = "example_config.accex"
     cwd = os.getcwd()
-    assert accex_config.find_config_path() == os.path.abspath(example_config_file_name)
+    assert accex.config.find_config_path() == os.path.abspath(example_config_file_name)
     tmp_path = os.path.abspath("test_tmp")
     if not os.path.exists(tmp_path):
         os.mkdir(tmp_path)
     os.chdir(tmp_path)
-    config_path = accex_config.find_config_path()
+    config_path = accex.config.find_config_path()
     os.chdir(cwd)
     os.rmdir(tmp_path)
     assert config_path == None
@@ -100,30 +98,30 @@ def test_find_config_path():
 def test_resolve_config_path():
     example_config_file_name = "example_config.accex"
     example_config_path = os.path.abspath(example_config_file_name)
-    assert accex_config.resolve_config_path() == example_config_path
+    assert accex.config.resolve_config_path() == example_config_path
 
     # test no config in cwd
     tmp_path = os.path.abspath("test_tmp")
     with CWDContext(tmp_path, True):
-        assert accex_config.resolve_config_path() == None
+        assert accex.config.resolve_config_path() == None
 
     with patch.object(sys, "argv", [ __file__, example_config_file_name ]):
-        assert accex_config.resolve_config_path() == example_config_path
+        assert accex.config.resolve_config_path() == example_config_path
     with patch.object(sys, "argv", [ __file__, example_config_path ]):
-        assert accex_config.resolve_config_path() == example_config_path
+        assert accex.config.resolve_config_path() == example_config_path
     with patch.object(sys, "argv", [ __file__, "invalid_config_path.accex" ]):
         with pytest.raises(ValueError):
-            accex_config.resolve_config_path()
+            accex.config.resolve_config_path()
 
 def test_remove_comments():
     s = "Cool\n\ncool"
-    assert accex_config.remove_comments(s) == s
+    assert accex.config.remove_comments(s) == s
     s = "# comment\nnot comment"
-    assert accex_config.remove_comments(s) == "\nnot comment"
+    assert accex.config.remove_comments(s) == "\nnot comment"
     s = "title\n look at this ##comment    \nbut \\#not this\n\n#\\this yes"
-    assert accex_config.remove_comments(s) == "title\n look at this \nbut #not this\n\n"
+    assert accex.config.remove_comments(s) == "title\n look at this \nbut #not this\n\n"
     s = "the remainder \\#\\#text\\##\\#\\#\\#comment"
-    assert accex_config.remove_comments(s) == "the remainder ##text#"
+    assert accex.config.remove_comments(s) == "the remainder ##text#"
 
 def test_replace_env_vars():
     test_env_vars = { "PASS": "123", "DB_PORT": "9000", "user_id": "candy", "host": "762.43.2.355" }
@@ -148,81 +146,81 @@ TARGET_DSN_PARAMS {{
 }}
 """
     with patch.dict("os.environ", test_env_vars):
-        replaced_text = accex_config.replace_env_vars(test_text)
+        replaced_text = accex.config.replace_env_vars(test_text)
         assert answer_text == replaced_text
 
         # test empty env var
         with pytest.raises(ValueError):
             text = "\n$\n$DB_PORT"
-            accex_config.replace_env_vars(text)
+            accex.config.replace_env_vars(text)
         
         # test empty env var with braces
         with pytest.raises(ValueError):
             text = "\n${}"
-            accex_config.replace_env_vars(text)
+            accex.config.replace_env_vars(text)
         
         # test missing env var
         with pytest.raises(ValueError):
             text = "\n$MISSING_VAR"
-            accex_config.replace_env_vars(text)
+            accex.config.replace_env_vars(text)
 
 
 def test_parse_config():
     config_text, answer_dict = generate_config_text()
-    config = accex_config.parse_config(config_text)
+    config = accex.config.parse_config(config_text)
     assert config
 
 def test_parse_config_file():
-    config = accex_config.parse_config_file("./tests/configs/config.accex")
+    config = accex.config.parse_config_file("./tests/configs/config.accex")
     assert config
 
 def test_write_config():
     config_text = read_file("./tests/configs/config.accex")
-    config = accex_config.parse_config(config_text)
-    out_config_text = accex_config.write_config(config)
-    out_config = accex_config.parse_config(out_config_text)
+    config = accex.config.parse_config(config_text)
+    out_config_text = accex.config.write_config(config)
+    out_config = accex.config.parse_config(out_config_text)
     assert config == out_config
 
 def test_write_config_file():
     config_text = read_file("./tests/configs/config.accex")
-    config = accex_config.parse_config(config_text)
+    config = accex.config.parse_config(config_text)
     out_config_path = "out_config.accex"
     if os.path.exists(out_config_path):
         os.remove(out_config_path)
-    accex_config.write_config_file(config, out_config_path)
+    accex.config.write_config_file(config, out_config_path)
     assert os.path.exists(out_config_path)
     out_config_text = read_file(out_config_path)
-    out_config = accex_config.parse_config(out_config_text)
+    out_config = accex.config.parse_config(out_config_text)
     assert config == out_config
     os.remove(out_config_path)
 
 def test_main(capsys):
     # cover main with init func
-    with patch.object(accex_config, "__name__", "__main__"):
-        accex_config.init()
+    with patch.object(accex.config, "__name__", "__main__"):
+        accex.config.init()
         capsys.readouterr()
 
     config_path = "./tests/configs/config.accex"
-    config = accex_config.parse_config_file(config_path)
-    config_text = accex_config.write_config(config)
+    config = accex.config.parse_config_file(config_path)
+    config_text = accex.config.write_config(config)
     with patch.object(sys, "argv", [ __file__, config_path ]):
-        accex_config.main()
+        accex.config.main()
         captured = capsys.readouterr()
         assert captured.out.strip() == config_text
 
     with patch.object(sys, "argv", [ __file__, "--json", config_path]):
-        accex_config.main()
+        accex.config.main()
         captured = capsys.readouterr()
         assert captured.out.strip() == json.dumps(config)
     
     with patch.object(sys, "argv", [ __file__, "--json", "--json-format", config_path]):
-        accex_config.main()
+        accex.config.main()
         captured = capsys.readouterr()
         assert captured.out.strip() == json.dumps(config, indent=4)
     
     out_config_path = "tmp_config.json"
     with patch.object(sys, "argv", [ __file__, "--json", "--out-file", out_config_path, config_path]):
-        accex_config.main()
+        accex.config.main()
         assert os.path.exists(out_config_path)
         out_config_json = read_file(out_config_path)
         assert out_config_json == json.dumps(config)
@@ -234,12 +232,12 @@ def test_main(capsys):
     argparse_error_code = 2
     with pytest.raises(SystemExit) as e:
         with patch.object(sys, "argv", [ __file__, "--out-file"]):
-            accex_config.main()
+            accex.config.main()
     assert e.value.code == argparse_error_code
 
     # test no config found
     tmp_path = "test_tmp"
     with pytest.raises(SystemExit) as e:
         with CWDContext(tmp_path, True):
-            accex_config.main()
+            accex.config.main()
     assert e.value.code == 1
