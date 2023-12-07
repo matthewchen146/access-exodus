@@ -3,8 +3,8 @@ import logging
 import json
 import pyodbc
 import aioodbc
-import accex_config
-from accex_config import ValidationError
+import accex.config
+from accex.config import ValidationError
 from typing import Callable
 from functools import cmp_to_key
 
@@ -78,7 +78,7 @@ async def get_column_name_dict(cur: aioodbc.Cursor, table: str, schema: str = No
 def create_conn_str(params: dict) -> str:
     return ";".join([f"{k}={v}" for k, v in params.items()])
 
-async def transfer_table(config: accex_config.Config, src_table_name: str, tgt_table_name: str) -> bool:
+async def transfer_table(config: accex.config.Config, src_table_name: str, tgt_table_name: str) -> bool:
     global src_cur
     global tgt_cur
 
@@ -125,9 +125,9 @@ async def transfer_table(config: accex_config.Config, src_table_name: str, tgt_t
         # get target columns and functions
         col_index = 0
         for k, v in src_table_columns.items():
-            if isinstance(v.value, accex_config.TargetColumnPointer):
+            if isinstance(v.value, accex.config.TargetColumnPointer):
                 tgt_table_column_names.append(v.value.column_name)
-            if isinstance(v.value, accex_config.SourceColumnMapFunction):
+            if isinstance(v.value, accex.config.SourceColumnMapFunction):
                 f = v.value
                 tgt_table_column_names.append(f.to_column.column_name)
                 await tgt_cur.execute(f"SELECT {f.from_row.select_column.column_name}, {f.with_column.column_name} FROM {f.with_column.table.to_sql_str()}")
@@ -161,7 +161,7 @@ async def transfer_table(config: accex_config.Config, src_table_name: str, tgt_t
         return False
 
 
-async def transfer(config: accex_config.Config, allow_prompts: bool = False):
+async def transfer(config: accex.config.Config, allow_prompts: bool = False):
 
     try:
         logging.info("validating config")
@@ -172,8 +172,8 @@ async def transfer(config: accex_config.Config, allow_prompts: bool = False):
     logging.info("validated config")
 
     def source_table_order_compare(a, b):
-        ta: accex_config.SourceTableBlock = a[1]
-        tb: accex_config.SourceTableBlock = b[1]
+        ta: accex.config.SourceTableBlock = a[1]
+        tb: accex.config.SourceTableBlock = b[1]
         # if ta depends on tb
         # if so, tb should go before ta
         if tb.target in ta.target_table_deps:
@@ -215,12 +215,12 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
     async def main():
-        config_path: str | None = accex_config.resolve_config_path()
+        config_path: str | None = accex.config.resolve_config_path()
     
         if not config_path:
             raise ValueError("no config file could be found")
     
-        config = accex_config.parse_config_file(config_path)
+        config = accex.config.parse_config_file(config_path)
 
         # config.validate()
 
