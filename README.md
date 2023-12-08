@@ -21,7 +21,7 @@ See below for useful links on intalling and using ODBC drivers.
 
 - With the executable: `accex <path-to-config-file>`
     - If a config file is not specified, the program will find one in the current working directory with the `.accex` extension.
-- From source: `python src/accex_process <path-to-config-file>`
+- From source: `python -m accex <path-to-config-file>`
 
 ## Currently Supported Database Targets
 
@@ -61,9 +61,8 @@ Using **poetry** to manage modules is recommended.
 Tests use **pytest** and **pytest-cov**
 
 - `poetry install --with test` to install test dependencies
-- `pytest`
+- `poetry run pytest`
 
 ## Building
 
-For CLI only (no gui)
-- `pyinstaller --onefile --hidden-import=uuid .\src\accex_process.py`
+WIP
