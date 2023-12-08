@@ -1,9 +1,0 @@
-
-TARGET_DSN_PARAMS {
-    Driver: PostgreSQL Unicode
-    Server: 762.43.2.355
-    Port: 9000
-    Database: postgres
-    Uid: candy
-    Pwd: 123
-}
