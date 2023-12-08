@@ -1,0 +1,9 @@
+
+TARGET_DSN_PARAMS {
+    Driver: PostgreSQL Unicode
+    Server: $host
+    Port: ${DB_PORT}
+    Database: postgres
+    Uid: $user_id
+    Pwd: $PASS
+}

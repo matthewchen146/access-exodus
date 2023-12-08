@@ -1,8 +1,9 @@
 SOURCE_DSN_PARAMS {
-    DSN: MS Access Database
+    Driver: Microsoft Access Driver (*.mdb, *.accdb)
 }
 
 SOURCES {
+    
     Automobile {
         DSN_PARAMS {
             DBQ: ./tests/databases/database_a.accdb
@@ -18,6 +19,35 @@ SOURCES {
             State: state
             AutoMileage: mileage
             Notes: notes
+            # foreign key that points to a customer.
+            # since the new database a new primary key for customers,
+            # map the old customer id to the new primary key,
+            # and put into the foreign key slot
+            CustID: customer_id WITH customers.id FROM ROW(customers.old_id, @value)
+            # from the id column in customers, get the id from the row with the matching @value for old_id
+            # the mapping created will be a dict with FROM key customers.old_id and WITH value customers.id
+            # this mapping will be created first, then performed later
+            # this also implies that customers should be created/filled first
+        }
+    }
+    Customer {
+        DSN_PARAMS {
+            DBQ: ./tests/databases/database_a.accdb
+        }
+        TARGET_TABLE: customers
+        COLUMNS {
+            CustID: old_id
+            Name: name
+            Address1: address_1
+            Address2: address_2
+            City: city
+            State: state
+            ZipCode: zip
+            # Source: source_id
+            WorkPhone: phone
+            LastIn: last_visit
+            DollarsSpent: dollars_spent
+            Visits: visits
         }
     }
     Employees {
@@ -59,13 +89,30 @@ SOURCES {
 TARGET_DSN_PARAMS {
     Driver: PostgreSQL Unicode
     Server: localhost
-    Port: 8000
+    Port: ${POSTGRES_PORT}
     Database: postgres
     Uid: postgres
-    Pwd: 123
+    Pwd: ${POSTGRES_PASSWORD}
 } 
 
 TARGETS {
+    customers {
+        COLUMNS {
+            id: serial primary key
+            old_id: text
+            name: text
+            address_1: text
+            address_2: text
+            city: text
+            state: text
+            zip: text
+            # source_id: int references sources(id)
+            phone: text
+            last_visit: date
+            dollars_spent: numeric
+            visits: int
+        }
+    }
     automobiles {
         COLUMNS {
             id: serial primary key
@@ -78,6 +125,7 @@ TARGETS {
             state: text
             mileage: int
             notes: text
+            customer_id: int references customers(id)
         }
     }
     employees {

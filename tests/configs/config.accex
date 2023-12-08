@@ -59,10 +59,10 @@ SOURCES {
 TARGET_DSN_PARAMS {
     Driver: PostgreSQL Unicode
     Server: localhost
-    Port: 5432
+    Port: ${POSTGRES_PORT}
     Database: postgres
     Uid: postgres
-    Pwd: root
+    Pwd: ${POSTGRES_PASSWORD}
 } 
 
 TARGETS {
