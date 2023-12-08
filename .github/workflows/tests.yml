@@ -1,10 +1,19 @@
-name: Test
+name: Run tests
 
-on: [push]
+on:
+  push:
+  workflow_dispatch:
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+concurrency:
+  group: tests
+  cancel-in-progress: true
 
 env:
   POSTGRES_PORT: 5432
   POSTGRES_PASSWORD: root
+  ODBC_WIN_POSTGRES: https://ftp.postgresql.org/pub/odbc/versions/msi/psqlodbc_16_00_0000-x64.zip
 
 jobs:
   test:
@@ -50,17 +59,38 @@ jobs:
       # set postgres.conf parameters
       # https://www.postgresql.org/docs/current/config-setting.html
 
+      - name: Test write temp dir, and var between runs
+        run: |
+          write $env:TEMP
+          $testVariable = "my test"
+      
+      - name: Test read var
+        run: |
+          write "testing"
+          write $testVariable
+
       - name: Setup postgres
         run: |
           # start server
           & "$env:PGBIN\pg_ctl.exe" start -D "$env:PGDATA"
           & "$env:PGBIN\pg_ctl.exe" status -D "$env:PGDATA"
+      
+      - name: Load cached postgres ODBC download
+        id: cached-installer-odbc-postgres
+        uses: actions/cache@v3
+        with:
+          path: $env:TEMP/psqlodbc.zip
+          key: odbc-${{ runner.os }}-postgres-${{ env.ODBC_WIN_POSTGRES }}
+
+      - name: Download ODBC postgres driver
+        run: |
+          $downloadUrl = "${{ env.ODBC_WIN_POSTGRES }}"
+          $downloadPath = "$env:TEMP\psqlodbc.zip"
+          Invoke-WebRequest -Uri $downloadUrl -OutFile $downloadPath
+        if: steps.cached-installer-odbc-postgres.outputs.cache-hit != 'true'
 
       - name: Install postgres ODBC driver
         run: |
-          $downloadUrl = "https://ftp.postgresql.org/pub/odbc/versions/msi/psqlodbc_16_00_0000-x64.zip"
-          $downloadPath = "$env:TEMP\psqlodbc.zip"
-          Invoke-WebRequest -Uri $downloadUrl -OutFile $downloadPath
           # extract psqlodbc installer
           $extractPath = "$env:TEMP\psqlodbc"
           Expand-Archive -Path $downloadPath -DestinationPath $extractPath -Force
