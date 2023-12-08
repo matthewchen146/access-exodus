@@ -156,3 +156,4 @@ cython_debug/
 git-filter-repo
 
 *.laccdb
+.vscode
