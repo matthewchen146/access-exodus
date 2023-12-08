@@ -157,3 +157,5 @@ git-filter-repo
 
 *.laccdb
 .vscode
+
+/reports/
