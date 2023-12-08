@@ -61,13 +61,7 @@ jobs:
 
       - name: Test write temp dir, and var between runs
         run: |
-          write $env:TEMP
-          $testVariable = "my test"
-      
-      - name: Test read var
-        run: |
-          write "testing"
-          write $testVariable
+          write "${{ runner.name }}"
 
       - name: Setup postgres
         run: |
@@ -91,6 +85,7 @@ jobs:
 
       - name: Install postgres ODBC driver
         run: |
+          $downloadPath = "$env:TEMP\psqlodbc.zip"
           # extract psqlodbc installer
           $extractPath = "$env:TEMP\psqlodbc"
           Expand-Archive -Path $downloadPath -DestinationPath $extractPath -Force
