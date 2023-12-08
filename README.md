@@ -6,7 +6,7 @@ The program relies on ODBC drivers and [aioodbc](https://github.com/aio-libs/aio
 For now, ODBC drivers will have to be installed manually.
 See below for useful links on intalling and using ODBC drivers.
 
-*Note: This project is in very early stages and currently only works on Windows due to the nature of Microsoft Access*
+### ⚠ Warning: This project is in very early stages and should not be used in production
 
 ## Current Features
 
@@ -18,6 +18,8 @@ See below for useful links on intalling and using ODBC drivers.
 - Schemas not yet implemented
 
 ## Usage
+
+### ⚠ Warning: Currently drops any existing tables in the target database and creates new tables
 
 - With the executable: `accex <path-to-config-file>`
     - If a config file is not specified, the program will find one in the current working directory with the `.accex` extension.
