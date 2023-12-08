@@ -68,9 +68,9 @@ jobs:
       - name: Install dependencies
         run: poetry install ${{ env.POETRY_INSTALL_ARGS }}
         if: steps.cached-poetry-venv.outputs.cache-hit != 'true'
-      
+
       - name: Build docs
-        run: make -C docs html
+        run: poetry run make -C docs html
       
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v2
