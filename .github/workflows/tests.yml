@@ -61,7 +61,7 @@ jobs:
 
       - name: Test write temp dir, and var between runs
         run: |
-          write "${{ runner.name }}"
+          write "${{ runner.temp }}"
 
       - name: Setup postgres
         run: |
