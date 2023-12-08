@@ -1,5 +1,6 @@
-from . import main
-import sys, logging, json
+from .core import _main
+import logging
 
 if __name__ == "__main__":
-    main()
+    logging.basicConfig(level=logging.INFO)
+    _main()
