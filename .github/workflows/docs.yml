@@ -43,15 +43,12 @@ jobs:
       # verify python version
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
-      
-      - name: Install awk
-        run: sudo apt-get install gawk
 
       - name: Hash poetry install arguments
         id: poetry-install-args
         run: |
-          $HASH=$(echo ${{ env.POETRY_INSTALL_ARGS }} | sha256sum | awk '{print $1}')
-          echo "::step-output name=hash::$HASH"
+          echo ${{ env.POETRY_INSTALL_ARGS }} > poetry_install_hash.txt
+          echo "::step-output name=hash::${{ hashFiles( 'poetry_install_hash.txt' ) }}"
 
       # cache poetry venv
       - name: Load cached venv
