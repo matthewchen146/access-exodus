@@ -44,6 +44,9 @@ jobs:
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
       
+      - name: Install awk
+        run: sudo apt-get install gawk
+
       - name: Hash poetry install arguments
         id: poetry-install-args
         run: |
