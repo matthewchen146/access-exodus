@@ -60,10 +60,6 @@ jobs:
       # set postgres.conf parameters
       # https://www.postgresql.org/docs/current/config-setting.html
 
-      - name: Test write temp dir, and var between runs
-        run: |
-          write "${{ runner.temp }}"
-
       - name: Setup postgres
         run: |
           # start server
@@ -76,6 +72,9 @@ jobs:
         with:
           path: ${{ env.TEMP_DIR }}/psqlodbc.zip
           key: odbc-${{ runner.os }}-postgres-${{ env.ODBC_WIN_POSTGRES }}
+
+      - name: Create temp directory
+        run: New-Item -ItemType "directory" -Path . -Name "${{ env.TEMP_DIR }}"
 
       - name: Download ODBC postgres driver
         run: |
