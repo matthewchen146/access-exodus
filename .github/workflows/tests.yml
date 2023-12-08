@@ -66,15 +66,15 @@ jobs:
           & "$env:PGBIN\pg_ctl.exe" start -D "$env:PGDATA"
           & "$env:PGBIN\pg_ctl.exe" status -D "$env:PGDATA"
       
+      - name: Create temp directory
+        run: New-Item -ItemType "directory" -Path . -Name "${{ env.TEMP_DIR }}"
+
       - name: Load cached postgres ODBC download
         id: cached-installer-odbc-postgres
         uses: actions/cache@v3
         with:
           path: ${{ env.TEMP_DIR }}/psqlodbc.zip
           key: odbc-${{ runner.os }}-postgres-${{ env.ODBC_WIN_POSTGRES }}
-
-      - name: Create temp directory
-        run: New-Item -ItemType "directory" -Path . -Name "${{ env.TEMP_DIR }}"
 
       - name: Download ODBC postgres driver
         run: |
