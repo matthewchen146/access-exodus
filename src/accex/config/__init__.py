@@ -653,9 +653,9 @@ def resolve_config_path() -> str | None:
         config_path = find_config_path()
     return config_path
 
-def setup_argparse(main: bool = False) -> argparse.ArgumentParser:
+def setup_argparse(main: bool = False, force: bool = False) -> argparse.ArgumentParser:
     global arg_parser
-    if arg_parser:
+    if arg_parser and not force:
         return arg_parser
     parser = argparse.ArgumentParser(prog="accex")
     parser.add_argument(
@@ -688,3 +688,25 @@ def setup_argparse(main: bool = False) -> argparse.ArgumentParser:
 def parse_args(main: bool = False) -> argparse.Namespace:
     return setup_argparse(main).parse_args()
 
+def main():
+    setup_argparse(True, True)
+    args = parse_args()
+    config_path = resolve_config_path()
+    if not config_path:
+        logging.info("no config file specified/found")
+        sys.exit(1)
+    config = parse_config_file(config_path)
+    out = ''
+    if args.json:
+        if args.json_format:
+            out = json.dumps(config, indent=4)
+        else:
+            out = json.dumps(config)
+    else:
+        out = write_config(config)
+
+    if args.out_file:
+        with open(args.out_file, 'w') as file:
+            file.write(out)
+    else:
+        print(out)
