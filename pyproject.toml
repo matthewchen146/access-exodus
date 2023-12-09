@@ -43,13 +43,19 @@ pythonpath = [ "src" ]
 log_cli = true
 log_cli_level = 10
 log_file = "misc/pytest_log.txt"
-addopts = "--cov=src --cov-config=pyproject.toml --tb=line --junitxml=reports/junit/junit.xml"
+addopts = "--cov-report=term --cov-report=xml --cov=src --cov-config=pyproject.toml --tb=line --junitxml=reports/junit/junit.xml"
 
 [tool.coverage.run]
-omit = [ "**/__main__.py" ]
+omit = [
+    "**/__main__.py",
+    "src/accex/gui/*"
+]
 
 [tool.coverage.report]
 show_missing = true
+
+[tool.coverage.xml]
+output = "reports/coverage/coverage.xml"
 
 [build-system]
 requires = ["poetry-core"]
