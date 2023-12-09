@@ -25,7 +25,6 @@ jobs:
     env:
       POSTGRES_PORT: 5432
       POSTGRES_PASSWORD: root
-      TEMP_DIR: temp 
     steps:
       
       - uses: actions/checkout@v4
@@ -56,9 +55,6 @@ jobs:
           # start server
           & "$env:PGBIN\pg_ctl.exe" start -D "$env:PGDATA"
           & "$env:PGBIN\pg_ctl.exe" status -D "$env:PGDATA"
-      
-      - name: Create temp directory
-        run: New-Item -ItemType "directory" -Path . -Name "${{ env.TEMP_DIR }}"
 
       - name: Create download hash
         id: odbc-win-postgres-hash
@@ -69,19 +65,19 @@ jobs:
         id: cached-installer-odbc-postgres
         uses: actions/cache@v3
         with:
-          path: ${{ env.TEMP_DIR }}/psqlodbc.zip
+          path: psqlodbc.zip
           key: odbc-${{ runner.os }}-postgres-${{ steps.odbc-win-postgres-hash.outputs.HASH }}
 
       - name: Download ODBC postgres driver
         run: |
           $downloadUrl = "${{ env.ODBC_WIN_POSTGRES }}"
-          $downloadPath = "${{ env.TEMP_DIR }}\psqlodbc.zip"
+          $downloadPath = "psqlodbc.zip"
           Invoke-WebRequest -Uri $downloadUrl -OutFile $downloadPath
         if: steps.cached-installer-odbc-postgres.outputs.cache-hit != 'true'
 
       - name: Install postgres ODBC driver
         run: |
-          $downloadPath = "${{ env.TEMP_DIR }}\psqlodbc.zip"
+          $downloadPath = "psqlodbc.zip"
           # extract psqlodbc installer
           $extractPath = "$env:TEMP\psqlodbc"
           Expand-Archive -Path $downloadPath -DestinationPath $extractPath -Force
