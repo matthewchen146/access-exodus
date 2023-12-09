@@ -32,12 +32,13 @@ jobs:
           path: docs_cache.txt
           key: ${{ hashFiles( 'docs/**/*' ) }}
       
-      - name: Store cache hit
-        run: echo "HIT=${{steps.docs-cache.outputs.cache-hit}}" >> "$GITHUB_OUTPUT"
+      - name: Store true cache hit
+        run: echo "HIT=true" >> "$GITHUB_OUTPUT"
+        if: ${{ steps.docs-cache.outputs.cache-hit == 'true'}}
       
-      - name: Print result
-        run: echo "docs cache hit, skipping"
-        if: ${{ steps.docs-cache.outputs.cache-hit == 'true' }}
+      - name: Store false if no cache hit
+        run: echo "HIT=false" >> "$GITHUB_OUTPUT"
+        if: ${{ steps.docs-cache.outputs.cache-hit != 'true'}}
       
   # Build job
   build:
@@ -55,7 +56,7 @@ jobs:
         uses: actions/configure-pages@v4
 
       - name: Install poetry
-        run: python -m pip install poetry==1.7.1
+        run: pip install poetry==1.7.1
 
       - name: Configure poetry
         run: poetry config virtualenvs.in-project true
@@ -68,7 +69,7 @@ jobs:
           cache: "poetry"
 
       - name: Install dependencies
-        run: poetry install --with test
+        run: poetry install ${{ env.POETRY_INSTALL_ARGS }}
 
       - name: Build docs
         run: poetry run make -C docs html
