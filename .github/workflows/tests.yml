@@ -70,11 +70,9 @@ jobs:
       - name: Create temp directory
         run: New-Item -ItemType "directory" -Path . -Name "${{ env.TEMP_DIR }}"
 
-      - name: Create download hash text file
+      - name: Create download text file for hash
         id: odbc-win-postgres-hash
-        run: |
-          echo "${{ env.ODBC_WIN_POSTGRES }}" > "$GITHUB_WORKSPACE/odbc_win_postgres_hash.txt"
-          echo "HASH=${{ hashFiles('$GITHUB_WORKSPACE/odbc_win_postgres_hash.txt') }}" >> "$GITHUB_OUTPUT"
+        run: echo "${{ env.ODBC_WIN_POSTGRES }}" > "${GITHUB_WORKSPACE}/odbc_win_postgres_hash.txt"
         shell: bash
 
       - name: Load cached postgres ODBC download
@@ -82,7 +80,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ${{ env.TEMP_DIR }}/psqlodbc.zip
-          key: odbc-${{ runner.os }}-postgres-${{ steps.odbc-win-postgres-hash.outputs.HASH }}
+          key: odbc-${{ runner.os }}-postgres-${{ hashFiles('${GITHUB_WORKSPACE}/odbc_win_postgres_hash.txt') }}
 
       - name: Download ODBC postgres driver
         run: |
@@ -121,11 +119,28 @@ jobs:
       - name: Run tests
         run: poetry run pytest
       
+      - name: Debug paths
+        continue-on-error: true
+        run: |
+          write "$env:GITHUB_WORKSPACE"
+          Get-ChildItem "$env:GITHUB_WORKSPACE"
+          write "cwd:"
+          Get-ChildItem
+      
+      - name: Debug paths bash
+        run: |
+          echo $GITHUB_WORKSPACE
+          ls $GITHUB_WORKSPACE
+          echo "cwd:"
+          ls
+        shell: bash
+
       - name: Upload test results
         uses: actions/upload-artifact@v3
+        continue-on-error: true
         with:
           name: test-results
-          path: results
+          path: ${GITHUB_WORKSPACE}/results
   
   # Create assets
   assets:
