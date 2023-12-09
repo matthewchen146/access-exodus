@@ -32,6 +32,9 @@ jobs:
           path: docs_cache.txt
           key: ${{ hashFiles( 'docs/**/*' ) }}
       
+      - name: Create cache file
+        run: echo "${{ hashFiles( 'docs/**/*' ) }}" > docs_cache.txt
+
       - name: Store true cache hit
         run: echo "HIT=true" >> "$GITHUB_OUTPUT"
         if: ${{ steps.docs-cache.outputs.cache-hit == 'true'}}
