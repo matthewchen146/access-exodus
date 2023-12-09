@@ -131,7 +131,6 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     if: github.ref_name == 'refs/heads/main'
-    continue-on-error: true
     env:
       BRANCH: assets
     steps:
