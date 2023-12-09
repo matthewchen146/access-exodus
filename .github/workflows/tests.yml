@@ -11,9 +11,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  POSTGRES_PORT: 5432
-  POSTGRES_PASSWORD: root
-  TEMP_DIR: temp
   ODBC_WIN_POSTGRES: https://ftp.postgresql.org/pub/odbc/versions/msi/psqlodbc_16_00_0000-x64.zip
 
 jobs:
@@ -25,7 +22,10 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.11"]
-        
+    env:
+      POSTGRES_PORT: 5432
+      POSTGRES_PASSWORD: root
+      TEMP_DIR: temp 
     steps:
       
       - uses: actions/checkout@v4
@@ -140,6 +140,10 @@ jobs:
       - uses: actions/download-artifact@v3
         with:
           name: test-reports
+          path: ./
+
+      - name: Debug directory
+        run: ls
 
       - name: Generate badges
         run: |
