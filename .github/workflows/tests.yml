@@ -15,8 +15,30 @@ env:
 
 jobs:
 
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      cached: ${{ steps.src-cache.outputs.cache-hit }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Load src cache
+        id: src-cache
+        uses: actions/cache@v3
+        with:
+          path: src_cache.txt
+          key: ${{ hashFiles( 'src/**/*', 'tests/**/*' ) }}
+      
+      - name: Create cache file
+        run: echo "${{ hashFiles( 'src/**/*', 'tests/**/*' ) }}" > src_cache.txt
+
+      - name: Display cache state
+        run: echo "cache hit ${{ steps.src-cache.outputs.cache-hit }}"
+
   # Run tests
   test:
+    needs: check
+    if: ${{ needs.check.outputs.cached != 'true' }}
     # https://github.com/actions/runner-images/blob/main/images/windows/Windows2022-Readme.md
     runs-on: windows-latest
     strategy:
