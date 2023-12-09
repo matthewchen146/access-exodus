@@ -83,35 +83,29 @@ def test_config_class():
     assert True
 
 def test_find_config_path():
-    example_config_file_name = "example_config.accex"
-    cwd = os.getcwd()
-    assert ac.find_config_path() == os.path.abspath(example_config_file_name)
-    tmp_path = os.path.abspath("test_tmp")
-    if not os.path.exists(tmp_path):
-        os.mkdir(tmp_path)
-    os.chdir(tmp_path)
-    config_path = ac.find_config_path()
-    os.chdir(cwd)
-    os.rmdir(tmp_path)
-    assert config_path == None
+    with CWDContext("test_tmp", True):
+        assert ac.find_config_path() == None
+        test_config_path = os.path.abspath("test_config.accex")
+        with open(test_config_path, "w"):
+            pass
+        assert ac.find_config_path() == test_config_path
 
 def test_resolve_config_path():
-    example_config_file_name = "example_config.accex"
-    example_config_path = os.path.abspath(example_config_file_name)
-    assert ac.resolve_config_path() == example_config_path
-
-    # test no config in cwd
-    tmp_path = os.path.abspath("test_tmp")
-    with CWDContext(tmp_path, True):
+    with CWDContext("test_tmp", True):
         assert ac.resolve_config_path() == None
+        test_config_name = "test_config.accex"
+        test_config_path = os.path.abspath("test_config.accex")
+        with open(test_config_path, "w"):
+            pass
+        assert ac.resolve_config_path() == test_config_path
 
-    with patch.object(sys, "argv", [ __file__, example_config_file_name ]):
-        assert ac.resolve_config_path() == example_config_path
-    with patch.object(sys, "argv", [ __file__, example_config_path ]):
-        assert ac.resolve_config_path() == example_config_path
-    with patch.object(sys, "argv", [ __file__, "invalid_config_path.accex" ]):
-        with pytest.raises(ValueError):
-            ac.resolve_config_path()
+        with patch.object(sys, "argv", [ __file__, test_config_name ]):
+            assert ac.resolve_config_path() == test_config_path
+        with patch.object(sys, "argv", [ __file__, test_config_path ]):
+            assert ac.resolve_config_path() == test_config_path
+        with patch.object(sys, "argv", [ __file__, "invalid_config_path.accex" ]):
+            with pytest.raises(ValueError):
+                ac.resolve_config_path()
 
 def test_remove_comments():
     s = "Cool\n\ncool"
