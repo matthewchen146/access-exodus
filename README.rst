@@ -4,6 +4,12 @@ Access Exodus
 .. image:: https://img.shields.io/github/actions/workflow/status/matthewchen146/access-exodus/tests.yml?label=tests
    :target: https://github.com/matthewchen146/access-exodus/actions/workflows/tests.yml
    :alt: Tests Status
+.. image:: https://raw.githubusercontent.com/matthewchen146/access-exodus/assets/assets/badges/tests-badge.svg
+   :target: https://github.com/matthewchen146/access-exodus/actions/workflows/tests.yml
+   :alt: Tests Count
+.. image:: https://raw.githubusercontent.com/matthewchen146/access-exodus/assets/assets/badges/coverage-badge.svg
+   :target: https://github.com/matthewchen146/access-exodus/actions/workflows/tests.yml
+   :alt: Tests Coverage
 .. image:: https://img.shields.io/github/actions/workflow/status/matthewchen146/access-exodus/docs.yml?label=docs
    :target: https://github.com/matthewchen146/access-exodus/actions/workflows/docs.yml
    :alt: Docs Status
