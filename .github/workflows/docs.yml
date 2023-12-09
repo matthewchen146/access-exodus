@@ -44,7 +44,7 @@ jobs:
   build:
     needs: check
     runs-on: ubuntu-latest
-    if: ${{ needs.check.outputs.cached == 'true' }}
+    if: ${{ needs.check.outputs.cached != 'true' }}
     env:
       PYTHON_VERSION: "3.11"
       POETRY_INSTALL_ARGS: --only docs
