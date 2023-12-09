@@ -36,10 +36,15 @@ jobs:
       - name: Debug directory
         run: ls  
 
-      - name: Commit and push badges
+      - name: Commit and push assets
         run: |
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          git add assets
-          git commit -m "Created assets"
-          git push origin ${{ env.BRANCH }}
+          if [[ $(git status --porcelain assets/) ]]; then
+            echo "changes detected"
+            git config user.name github-actions
+            git config user.email github-actions@github.com
+            git add assets/
+            git commit -m "Created assets"
+            git push origin ${{ env.BRANCH }}
+          else
+            echo "no changes"
+          fi
