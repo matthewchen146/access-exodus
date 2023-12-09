@@ -1,4 +1,4 @@
-import os
+import os, shutil
 
 class CWDContext:
     def __init__(self, path, remove_dir: bool | None = None) -> None:
@@ -18,4 +18,4 @@ class CWDContext:
     def __exit__(self, exc_type, exc_value, traceback):
         os.chdir(self._original_cwd)
         if self._remove_dir:
-            os.rmdir(self._temp_cwd)
+            shutil.rmtree(self._temp_cwd, ignore_errors=True)
