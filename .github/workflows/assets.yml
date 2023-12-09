@@ -9,6 +9,7 @@ jobs:
   assets:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
+    continue-on-error: true
     env:
       BRANCH: assets
     steps:
@@ -20,10 +21,12 @@ jobs:
       - name: Install genbadge
         run: pip install genbadge[tests,coverage]
 
-      - uses: actions/download-artifact@v3
+      - name: Download reports
+        uses: dawidd6/action-download-artifact@v2
         with:
           name: test-reports
           path: reports
+          workflow: tests.yml
 
       - name: Generate badges
         run: |
