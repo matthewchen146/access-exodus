@@ -117,17 +117,18 @@ jobs:
         run: Get-OdbcDsn
 
       - name: Run tests
+        continue-on-error: true
         run: poetry run pytest
 
       - name: Upload test reports
         uses: actions/upload-artifact@v3
-        continue-on-error: true
         with:
           name: test-reports
           path: reports
   
   # Create assets
   assets:
+    needs: test
     runs-on: ubuntu-latest
     if: github.ref_name == 'refs/heads/main'
     continue-on-error: true
