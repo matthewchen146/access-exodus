@@ -22,7 +22,8 @@ jobs:
   # Check changes
   check:
     runs-on: ubuntu-latest
-    continue-on-error: true
+    outputs:
+      cached: ${{ steps.docs-cache.outputs.cache-hit }}
     steps:
       - uses: actions/checkout@v4
 
@@ -36,24 +37,17 @@ jobs:
       - name: Create cache file
         run: echo "${{ hashFiles( 'docs/**/*' ) }}" > docs_cache.txt
 
-      - name: Store true cache hit
-        run: |
-          echo "HIT=true" >> "$GITHUB_OUTPUT"
-          exit 1
-        if: ${{ steps.docs-cache.outputs.cache-hit == 'true'}}
-      
-      - name: Store false if no cache hit
-        run: echo "HIT=false" >> "$GITHUB_OUTPUT"
-        if: ${{ steps.docs-cache.outputs.cache-hit != 'true'}}
+      - name: Display cache state
+        run: echo "cache hit ${{ steps.docs-cache.outputs.cache-hit }}"
       
   # Build job
   build:
     needs: check
     runs-on: ubuntu-latest
+    if: ${{ needs.check.outputs.cached == 'true' }}
     env:
       PYTHON_VERSION: "3.11"
       POETRY_INSTALL_ARGS: --only docs
-    if: ${{ needs.check.result == 'success' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
