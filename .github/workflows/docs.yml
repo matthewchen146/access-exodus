@@ -45,6 +45,9 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: "poetry"
 
+      - name: Install dependencies
+        run: poetry install --with test
+
       - name: Build docs
         run: poetry run make -C docs html
       

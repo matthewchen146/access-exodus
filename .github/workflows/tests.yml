@@ -47,6 +47,10 @@ jobs:
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
 
+      # create venv and install dependencies
+      - name: Install dependencies
+        run: poetry install --with test
+
       - name: Setup postgres
         run: |
           # start server
@@ -129,7 +133,7 @@ jobs:
       - name: Clone assets branch
         run: |
           git clone -b ${{ env.BRANCH }} https://github.com/${{ github.repository }} .
-      
+
       - name: Install genbadge
         run: pip install genbadge[tests,coverage]
 
