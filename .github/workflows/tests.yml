@@ -142,16 +142,16 @@ jobs:
           name: test-reports
           path: reports
 
-      - name: Debug directory
-        run: ls
-
       - name: Generate badges
         run: |
           genbadge tests -o assets/badges/tests-badge.svg
           genbadge coverage -o assets/badges/coverage-badge.svg
-      
+          
+      - name: Debug directory
+        run: ls  
+
       - name: Commit and push badges
         run: |
-          gid add assets
+          git add assets
           git commit -m "Created assets"
           git push origin ${{ env.BRANCH }}
