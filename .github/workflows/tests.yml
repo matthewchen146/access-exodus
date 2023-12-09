@@ -128,9 +128,9 @@ jobs:
   
   # Create assets
   assets:
-    needs: test
     runs-on: ubuntu-latest
-    if: github.ref_name == 'refs/heads/main'
+    needs: test
+    if: github.ref == 'refs/heads/main'
     env:
       BRANCH: assets
     steps:
