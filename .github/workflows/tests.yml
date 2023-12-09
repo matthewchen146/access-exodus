@@ -73,8 +73,8 @@ jobs:
       - name: Create download hash text file
         id: odbc-win-postgres-hash
         run: |
-          echo "${{ env.ODBC_WIN_POSTGRES }}" > odbc_win_postgres_hash.txt
-          echo "::set-output name=ODBC_WIN_POSTGRES::${{ hashFiles('**/odbc_win_postgres_hash.txt') }}"
+          echo "${{ env.ODBC_WIN_POSTGRES }}" > "$GITHUB_WORKSPACE/odbc_win_postgres_hash.txt"
+          echo "HASH=${{ hashFiles('$GITHUB_WORKSPACE/odbc_win_postgres_hash.txt') }}" >> "$GITHUB_OUTPUT"
         shell: bash
 
       - name: Load cached postgres ODBC download
@@ -82,7 +82,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ${{ env.TEMP_DIR }}/psqlodbc.zip
-          key: odbc-${{ runner.os }}-postgres-${{ steps.odbc-win-postgres-hash.outputs.ODBC_WIN_POSTGRES }}
+          key: odbc-${{ runner.os }}-postgres-${{ steps.odbc-win-postgres-hash.outputs.HASH }}
 
       - name: Download ODBC postgres driver
         run: |

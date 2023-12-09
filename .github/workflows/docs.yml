@@ -47,8 +47,8 @@ jobs:
       - name: Hash poetry install arguments
         id: poetry-install-args-hash
         run: |
-          echo "${{ env.POETRY_INSTALL_ARGS }}" > poetry_install_hash.txt
-          echo "::step-output name=HASH::${{ hashFiles( '**/poetry_install_hash.txt' ) }}"
+          echo "HASH=${{ env.POETRY_INSTALL_ARGS }}" > "$GITHUB_WORKSPACE/poetry_install_hash.txt"
+          echo "${{ hashFiles( '$GITHUB_WORKSPACE/poetry_install_hash.txt' ) }}" >> "$GITHUB_OUTPUT"
 
       # cache poetry venv
       - name: Load cached venv
