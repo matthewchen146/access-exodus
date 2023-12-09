@@ -19,12 +19,34 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Check changes
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Load docs cache
+        id: docs-cache
+        uses: actions/cache@v3
+        with:
+          path: docs_cache.txt
+          key: ${{ hashFiles( 'docs/**/*' ) }}
+      
+      - name: Store cache hit
+        run: echo "HIT=${{steps.docs-cache.outputs.cache-hit}}" >> "$GITHUB_OUTPUT"
+      
+      - name: Print result
+        run: echo "docs cache hit, skipping"
+        if: ${{ steps.docs-cache.outputs.cache-hit == 'true' }}
+      
   # Build job
   build:
+    needs: check
+    runs-on: ubuntu-latest
     env:
       PYTHON_VERSION: "3.11"
       POETRY_INSTALL_ARGS: --only docs
-    runs-on: ubuntu-latest
+    if: ${{ needs.check.outputs.HIT != 'true' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
