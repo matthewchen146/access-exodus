@@ -125,14 +125,9 @@ jobs:
       BRANCH: assets
     steps:
       
-      - name: Set up Git
-        run: |
-          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
-          git config --global user.name "${{ github.actor }}"
-
-      - name: Clone assets branch
-        run: |
-          git clone -b ${{ env.BRANCH }} https://github.com/${{ github.repository }} .
+      - uses: actions/checkout@v4
+        with:
+          ref: assets
 
       - name: Install genbadge
         run: pip install genbadge[tests,coverage]
@@ -152,6 +147,8 @@ jobs:
 
       - name: Commit and push badges
         run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
           git add assets
           git commit -m "Created assets"
           git push origin ${{ env.BRANCH }}
