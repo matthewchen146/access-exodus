@@ -30,36 +30,22 @@ jobs:
       
       - uses: actions/checkout@v4
 
+      - name: Install poetry
+        run: pip install poetry==1.7.1
+
+      - name: Configure poetry
+        run: poetry config virtualenvs.in-project true
+
       # setup python
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
-          cache: "pip"
+          cache: "poetry"
       
       # verify python version
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
-
-      # https://stackoverflow.com/questions/62977821/how-to-cache-poetry-install-for-github-actions
-      # cache poetry venv
-      - name: Load cached venv
-        id: cached-poetry-venv
-        uses: actions/cache@v3
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
-
-      - name: Install poetry
-        run: python -m pip install poetry==1.7.1
-
-      - name: Configure poetry
-        run: poetry config virtualenvs.in-project true
-
-      # create venv and install dependencies
-      - name: Install dependencies
-        run: poetry install --with test
-        if: steps.cached-poetry-venv.outputs.cache-hit != 'true'
 
       - name: Setup postgres
         run: |
@@ -143,12 +129,6 @@ jobs:
       - name: Clone assets branch
         run: |
           git clone -b ${{ env.BRANCH }} https://github.com/${{ github.repository }} .
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
-          cache: "pip"
       
       - name: Install genbadge
         run: pip install genbadge[tests,coverage]
