@@ -12,8 +12,8 @@ concurrency:
 
 env:
   ODBC_WIN_ACCESS: https://download.microsoft.com/download/2/4/3/24375141-E08D-4803-AB0E-10F2E3A07AAA/AccessDatabaseEngine_X64.exe
-  ODBC_WIN_ACCESS_DIR: C:/PROGRA~1/COMMON~1/MICROS~1/OFFICE14
-  ODBC_WIN_ACCESS_PATH: C:/PROGRA~1/COMMON~1/MICROS~1/OFFICE14/ACEODBC.DLL
+  ODBC_WIN_ACCESS_DIR: C:/Program Files/Common Files/microsoft shared/OFFICE14
+  ODBC_WIN_ACCESS_PATH: C:/Program Files/Common Files/microsoft shared/OFFICE14/ACEODBC.DLL
   ODBC_WIN_POSTGRES: https://ftp.postgresql.org/pub/odbc/versions/msi/psqlodbc_16_00_0000-x64.zip
   ODBC_WIN_POSTGRES_DIR: C:/Program Files/psqlODBC/1600/bin
   ODBC_WIN_POSTGRES_PATH: C:/Program Files/psqlODBC/1600/bin/psqlodbc35w.dll
