@@ -10,14 +10,6 @@ concurrency:
   group: tests
   cancel-in-progress: true
 
-env:
-  ODBC_WIN_ACCESS: https://download.microsoft.com/download/2/4/3/24375141-E08D-4803-AB0E-10F2E3A07AAA/AccessDatabaseEngine_X64.exe
-  ODBC_WIN_ACCESS_DIR: C:/Program Files/Common Files/microsoft shared/OFFICE14
-  ODBC_WIN_ACCESS_PATH: C:/Program Files/Common Files/microsoft shared/OFFICE14/ACEODBC.DLL
-  ODBC_WIN_POSTGRES: https://ftp.postgresql.org/pub/odbc/versions/msi/psqlodbc_16_00_0000-x64.zip
-  ODBC_WIN_POSTGRES_DIR: C:/Program Files/psqlODBC/1600/bin
-  ODBC_WIN_POSTGRES_PATH: C:/Program Files/psqlODBC/1600/bin/psqlodbc35w.dll
-
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -51,6 +43,9 @@ jobs:
     env:
       POSTGRES_PORT: 5432
       POSTGRES_PASSWORD: root
+      TEMP_DOWNLOAD_DIR: temp_download
+      ODBC_WIN_ACCESS: https://download.microsoft.com/download/2/4/3/24375141-E08D-4803-AB0E-10F2E3A07AAA/AccessDatabaseEngine_X64.exe
+      ODBC_WIN_POSTGRES: https://ftp.postgresql.org/pub/odbc/versions/msi/psqlodbc_16_00_0000-x64.zip
     steps:
       
       - uses: actions/checkout@v4
@@ -82,8 +77,8 @@ jobs:
           & "$env:PGBIN\pg_ctl.exe" start -D "$env:PGDATA"
           & "$env:PGBIN\pg_ctl.exe" status -D "$env:PGDATA"
 
-      - name: Display ODBC drivers pre install
-        run: python scripts/odbc_driver.py ls --info
+      - name: Create download temp folder
+        run: mkdir ${{ env.TEMP_DOWNLOAD_DIR }}
 
       # ODBC Driver Postgres
       - name: Get driver hash for postgres
@@ -91,32 +86,27 @@ jobs:
         run: echo "HASH=$(python -c "import hashlib; print(hashlib.sha256(b'${{ env.ODBC_WIN_POSTGRES }}').hexdigest())")" >> "$GITHUB_OUTPUT"
         shell: bash
 
-      - name: Load cached ODBC driver for postgres
+      - name: Load cached ODBC driver installer for postgres
         id: cached-odbc-driver-postgres
         uses: actions/cache@v3
         with:
-          path: ${{ env.ODBC_WIN_POSTGRES_DIR }}
+          path: ${{ env.TEMP_DOWNLOAD_DIR }}/psqlodbc/psqlodbc_x64.msi
           key: odbc-${{ runner.os }}-postgres-${{ steps.odbc-win-postgres-hash.outputs.HASH }}
 
-      - name: Download and Install ODBC driver for postgres 
+      - name: Download ODBC driver for postgres
+        if: ${{ steps.cached-odbc-driver-postgres.outputs.cache-hit != 'true' }}
         run: |
           $downloadUrl = "${{ env.ODBC_WIN_POSTGRES }}"
-          $downloadPath = "psqlodbc.zip"
+          $downloadPath = "${{ env.TEMP_DOWNLOAD_DIR }}/psqlodbc.zip"
           Invoke-WebRequest -Uri $downloadUrl -OutFile $downloadPath
           # extract psqlodbc installer
-          $extractPath = "$env:TEMP\psqlodbc"
+          $extractPath = "${{ env.TEMP_DOWNLOAD_DIR }}/psqlodbc"
           Expand-Archive -Path $downloadPath -DestinationPath $extractPath -Force
-          # run psqlodbc installer
-          $installerPath = "$env:TEMP\psqlodbc\psqlodbc_x64.msi"
-          Start-Process -FilePath $installerPath -ArgumentList "/quiet","/passive" -Wait
-          # remove downloads
-          if (Test-Path $extractPath) { Remove-Item $extractPath -Force -Recurse } else { Write-Host "Item $extractPath does not exist" }
-          if (Test-Path $downloadPath) { Remove-Item $downloadPath -Force } else { Write-Host "Item $downloadPath does not exist" }
-        if: ${{ steps.cached-odbc-driver-postgres.outputs.cache-hit != 'true' }}
       
-      - name: Register ODBC driver for postgres
-        run: python scripts/odbc_driver.py register "PostgreSQL Unicode" "${{ env.ODBC_WIN_POSTGRES_PATH }}"
-        if: ${{ steps.cached-odbc-driver-postgres.outputs.cache-hit == 'true' }}
+      - name: Install ODBC driver for postgres
+        run: |
+          $installerPath = "${{ env.TEMP_DOWNLOAD_DIR }}/psqlodbc/psqlodbc_x64.msi"
+          Start-Process -FilePath $installerPath -ArgumentList "/quiet","/passive" -Wait
 
       # ODBC Driver Microsoft Access
       - name: Get driver hash for access
@@ -124,25 +114,25 @@ jobs:
         run: echo "HASH=$(python -c "import hashlib; print(hashlib.sha256(b'${{ env.ODBC_WIN_ACCESS }}').hexdigest())")" >> "$GITHUB_OUTPUT"
         shell: bash
 
-      - name: Load cached ODBC driver for access
+      - name: Load cached ODBC driver installer for access
         id: cached-odbc-driver-access
         uses: actions/cache@v3
         with:
-          path: ${{ env.ODBC_WIN_ACCESS_DIR }}
+          path: ${{ env.TEMP_DOWNLOAD_DIR }}/accessdatabaseengine.exe
           key: odbc-${{ runner.os }}-access-${{ steps.odbc-win-access-hash.outputs.HASH }}
 
+      - name: Download ODBC driver for access
+        if: ${{ steps.cached-odbc-driver-access.outputs.cache-hit != 'true' }}
+        run: |
+          $downloadUrl = "${{ env.ODBC_WIN_ACCESS }}"
+          $installerPath = "${{ env.TEMP_DOWNLOAD_DIR }}/accessdatabaseengine.exe"
+          Invoke-WebRequest -Uri $downloadUrl -OutFile $installerPath
+      
       - name: Install Access Database Engine
         run: |
           $downloadUrl = "${{ env.ODBC_WIN_ACCESS }}"
-          $installerPath = "$env:TEMP\accessdatabaseengine.exe"
-          Invoke-WebRequest -Uri $downloadUrl -OutFile $installerPath
+          $installerPath = "${{ env.TEMP_DOWNLOAD_DIR }}/accessdatabaseengine.exe"
           Start-Process -FilePath $installerPath -ArgumentList "/quiet","/passive" -Wait
-          Remove-Item $installerPath -Force
-        if: ${{ steps.cached-odbc-driver-access.outputs.cache-hit != 'true' }}
-
-      - name: Register ODBC driver for access
-        run: python scripts/odbc_driver.py register "Microsoft Access Driver (*.mdb, *.accdb)" "${{ env.ODBC_WIN_ACCESS_PATH }}"
-        if: ${{ steps.cached-odbc-driver-access.outputs.cache-hit == 'true' }}
 
       - name: Display ODBC drivers
         run: python scripts/odbc_driver.py ls --info
