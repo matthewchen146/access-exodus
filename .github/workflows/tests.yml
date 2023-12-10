@@ -38,7 +38,7 @@ jobs:
   # Run tests
   test:
     needs: check
-    if: ${{ needs.check.outputs.cached != 'true' }}
+    # if: ${{ needs.check.outputs.cached != 'true' }}
     # https://github.com/actions/runner-images/blob/main/images/windows/Windows2022-Readme.md
     runs-on: windows-latest
     strategy:
@@ -78,28 +78,25 @@ jobs:
           & "$env:PGBIN\pg_ctl.exe" start -D "$env:PGDATA"
           & "$env:PGBIN\pg_ctl.exe" status -D "$env:PGDATA"
 
-      - name: Create download hash
+      - name: Get driver hash and path for postgres
         id: odbc-win-postgres-hash
-        run: echo "HASH=$(python -c "import hashlib; print(hashlib.sha256(b'${{ env.ODBC_WIN_POSTGRES }}').hexdigest())")" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "HASH=$(python -c "import hashlib; print(hashlib.sha256(b'${{ env.ODBC_WIN_POSTGRES }}').hexdigest())")" >> "$GITHUB_OUTPUT"
+          echo "DRIVER_PATH=$(python scripts/odbc_driver.py path 'PostgreSQL Unicode')" >> "$GITHUB_OUTPUT"
         shell: bash
 
-      - name: Load cached postgres ODBC download
-        id: cached-installer-odbc-postgres
+      - name: Load cached postgres ODBC driver
+        id: cached-odbc-postgres-driver
         uses: actions/cache@v3
         with:
-          path: psqlodbc.zip
+          path: ${{ steps.odbc-win-postgres-hash.outputs.DRIVER_PATH }}
           key: odbc-${{ runner.os }}-postgres-${{ steps.odbc-win-postgres-hash.outputs.HASH }}
 
-      - name: Download ODBC postgres driver
+      - name: Download and Install ODBC driver for postgres 
         run: |
           $downloadUrl = "${{ env.ODBC_WIN_POSTGRES }}"
           $downloadPath = "psqlodbc.zip"
           Invoke-WebRequest -Uri $downloadUrl -OutFile $downloadPath
-        if: steps.cached-installer-odbc-postgres.outputs.cache-hit != 'true'
-
-      - name: Install postgres ODBC driver
-        run: |
-          $downloadPath = "psqlodbc.zip"
           # extract psqlodbc installer
           $extractPath = "$env:TEMP\psqlodbc"
           Expand-Archive -Path $downloadPath -DestinationPath $extractPath -Force
@@ -109,6 +106,21 @@ jobs:
           # remove downloads
           if (Test-Path $extractPath) { Remove-Item $extractPath -Force -Recurse } else { Write-Host "Item $extractPath does not exist" }
           if (Test-Path $downloadPath) { Remove-Item $downloadPath -Force } else { Write-Host "Item $downloadPath does not exist" }
+        if: ${{ steps.cached-odbc-postgres-driver.outputs.cache-hit != 'true' }}
+
+      - name: Get driver hash and path for access
+        id: odbc-win-access-hash
+        run: |
+          echo "HASH=$(python -c "import hashlib; print(hashlib.sha256(b'${{ env.ODBC_WIN_POSTGRES }}').hexdigest())")" >> "$GITHUB_OUTPUT"
+          echo "DRIVER_PATH=$(python scripts/odbc_driver.py path 'PostgreSQL Unicode')" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      - name: Load cached postgres ODBC driver
+        id: cached-odbc-access-driver
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.odbc-win-access-hash.outputs.DRIVER_PATH }}
+          key: odbc-${{ runner.os }}-postgres-${{ steps.odbc-win-access-hash.outputs.HASH }}
 
       - name: Install Access Database Engine
         run: |
@@ -117,12 +129,10 @@ jobs:
           Invoke-WebRequest -Uri $downloadUrl -OutFile $installerPath
           Start-Process -FilePath $installerPath -ArgumentList "/quiet","/passive" -Wait
           Remove-Item $installerPath -Force
+        if: ${{ steps.cached-odbc-access-driver.outputs.cache-hit != 'true' }}
 
       - name: Display ODBC drivers
-        run: Get-OdbcDriver
-      
-      - name: Display ODBC DSNs
-        run: Get-OdbcDsn
+        run: python scripts/odbc_driver.py ls --info
 
       - name: Run tests
         continue-on-error: true
