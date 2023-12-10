@@ -1,4 +1,5 @@
 import os, winreg, argparse
+from pathlib import Path
 
 ODBCINST = "SOFTWARE\\ODBC\\ODBCINST.INI"
 
@@ -48,7 +49,7 @@ def main():
                         driver_path = winreg.QueryValueEx(driver_key, "Driver")[0]
                         drivers[driver_name] = {
                             "name": driver_name,
-                            "path": driver_path
+                            "path": Path(driver_path).resolve()
                         }
                     except OSError as e:
                         pass
@@ -62,7 +63,7 @@ def main():
             try:
                 with winreg.OpenKey(odbc_key, driver_name) as driver_key:
                     path: str = winreg.QueryValueEx(driver_key, "Driver")[0]
-                    print(path)
+                    print(Path(path).resolve())
             except OSError as e:
                 print(f"failed to find driver \"{driver_name}\"")
                 exit(1)
@@ -72,7 +73,7 @@ def main():
             print(f"admin privileges required to register a driver")
             exit(1)
         driver_name: str = args.name
-        driver_path: str = args.path
+        driver_path: str = Path(args.path).resolve()
         if not os.path.exists(driver_path):
             print(f"path \"{driver_path}\" does not exist")
             exit(1)
