@@ -122,7 +122,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: C:/PROGRA~1/COMMON~1/MICROS~1/OFFICE14/ACEODBC.DLL
-          key: odbc-${{ runner.os }}-postgres-${{ steps.odbc-win-access-hash.outputs.HASH }}
+          key: odbc-${{ runner.os }}-access-${{ steps.odbc-win-access-hash.outputs.HASH }}
 
       - name: Install Access Database Engine
         run: |
