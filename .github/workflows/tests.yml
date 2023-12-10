@@ -12,7 +12,9 @@ concurrency:
 
 env:
   ODBC_WIN_ACCESS: https://download.microsoft.com/download/2/4/3/24375141-E08D-4803-AB0E-10F2E3A07AAA/AccessDatabaseEngine_X64.exe
+  ODBC_WIN_ACCESS_PATH: C:/PROGRA~1/COMMON~1/MICROS~1/OFFICE14/ACEODBC.DLL
   ODBC_WIN_POSTGRES: https://ftp.postgresql.org/pub/odbc/versions/msi/psqlodbc_16_00_0000-x64.zip
+  ODBC_WIN_POSTGRES_PATH: C:/Program Files/psqlODBC/1600/bin/psqlodbc35w.dll
 
 jobs:
 
@@ -82,7 +84,7 @@ jobs:
       - name: Display ODBC drivers pre install
         run: python scripts/odbc_driver.py ls --info
 
-        # ODBC Driver Postgres
+      # ODBC Driver Postgres
       - name: Get driver hash for postgres
         id: odbc-win-postgres-hash
         run: echo "HASH=$(python -c "import hashlib; print(hashlib.sha256(b'${{ env.ODBC_WIN_POSTGRES }}').hexdigest())")" >> "$GITHUB_OUTPUT"
@@ -92,7 +94,7 @@ jobs:
         id: cached-odbc-driver-postgres
         uses: actions/cache@v3
         with:
-          path: C:/Program Files/psqlODBC/1600/bin/psqlodbc35w.dll
+          path: ${{ env.ODBC_WIN_POSTGRES_PATH }}
           key: odbc-${{ runner.os }}-postgres-${{ steps.odbc-win-postgres-hash.outputs.HASH }}
 
       - name: Download and Install ODBC driver for postgres 
@@ -110,8 +112,12 @@ jobs:
           if (Test-Path $extractPath) { Remove-Item $extractPath -Force -Recurse } else { Write-Host "Item $extractPath does not exist" }
           if (Test-Path $downloadPath) { Remove-Item $downloadPath -Force } else { Write-Host "Item $downloadPath does not exist" }
         if: ${{ steps.cached-odbc-driver-postgres.outputs.cache-hit != 'true' }}
+      
+      - name: Register ODBC driver for postgres
+        run: python scripts/odbc_driver.py register "PostgreSQL Unicode" "${{ env.ODBC_WIN_POSTGRES_PATH }}"
+        if: ${{ steps.cached-odbc-driver-postgres.outputs.cache-hit == 'true' }}
 
-        # ODBC Driver Microsoft Access
+      # ODBC Driver Microsoft Access
       - name: Get driver hash for access
         id: odbc-win-access-hash
         run: echo "HASH=$(python -c "import hashlib; print(hashlib.sha256(b'${{ env.ODBC_WIN_ACCESS }}').hexdigest())")" >> "$GITHUB_OUTPUT"
@@ -121,7 +127,7 @@ jobs:
         id: cached-odbc-driver-access
         uses: actions/cache@v3
         with:
-          path: C:/PROGRA~1/COMMON~1/MICROS~1/OFFICE14/ACEODBC.DLL
+          path: ${{ env.ODBC_WIN_ACCESS_PATH }}
           key: odbc-${{ runner.os }}-access-${{ steps.odbc-win-access-hash.outputs.HASH }}
 
       - name: Install Access Database Engine
@@ -132,6 +138,10 @@ jobs:
           Start-Process -FilePath $installerPath -ArgumentList "/quiet","/passive" -Wait
           Remove-Item $installerPath -Force
         if: ${{ steps.cached-odbc-driver-access.outputs.cache-hit != 'true' }}
+
+      - name: Register ODBC driver for access
+        run: python scripts/odbc_driver.py register "Microsoft Access Driver (*.mdb, *.accdb)" "${{ env.ODBC_WIN_ACCESS_PATH }}"
+        if: ${{ steps.cached-odbc-driver-access.outputs.cache-hit == 'true' }}
 
       - name: Display ODBC drivers
         run: python scripts/odbc_driver.py ls --info
