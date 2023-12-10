@@ -49,7 +49,7 @@ def main():
                         driver_path = winreg.QueryValueEx(driver_key, "Driver")[0]
                         drivers[driver_name] = {
                             "name": driver_name,
-                            "path": Path(driver_path).resolve()
+                            "path": str(Path(driver_path).resolve())
                         }
                     except OSError as e:
                         pass
@@ -73,7 +73,7 @@ def main():
             print(f"admin privileges required to register a driver")
             exit(1)
         driver_name: str = args.name
-        driver_path: str = Path(args.path).resolve()
+        driver_path = str(Path(args.path).resolve())
         if not os.path.exists(driver_path):
             print(f"path \"{driver_path}\" does not exist")
             exit(1)
