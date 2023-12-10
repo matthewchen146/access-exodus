@@ -11,6 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  ODBC_WIN_ACCESS: https://download.microsoft.com/download/2/4/3/24375141-E08D-4803-AB0E-10F2E3A07AAA/AccessDatabaseEngine_X64.exe
   ODBC_WIN_POSTGRES: https://ftp.postgresql.org/pub/odbc/versions/msi/psqlodbc_16_00_0000-x64.zip
 
 jobs:
@@ -113,7 +114,7 @@ jobs:
         # ODBC Driver Microsoft Access
       - name: Get driver hash for access
         id: odbc-win-access-hash
-        run: echo "HASH=$(python -c "import hashlib; print(hashlib.sha256(b'${{ env.ODBC_WIN_POSTGRES }}').hexdigest())")" >> "$GITHUB_OUTPUT"
+        run: echo "HASH=$(python -c "import hashlib; print(hashlib.sha256(b'${{ env.ODBC_WIN_ACCESS }}').hexdigest())")" >> "$GITHUB_OUTPUT"
         shell: bash
 
       - name: Load cached ODBC driver for access
@@ -125,7 +126,7 @@ jobs:
 
       - name: Install Access Database Engine
         run: |
-          $downloadUrl = "https://download.microsoft.com/download/2/4/3/24375141-E08D-4803-AB0E-10F2E3A07AAA/AccessDatabaseEngine_X64.exe"
+          $downloadUrl = "${{ env.ODBC_WIN_ACCESS }}"
           $installerPath = "$env:TEMP\accessdatabaseengine.exe"
           Invoke-WebRequest -Uri $downloadUrl -OutFile $installerPath
           Start-Process -FilePath $installerPath -ArgumentList "/quiet","/passive" -Wait
