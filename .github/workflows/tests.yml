@@ -34,7 +34,7 @@ jobs:
   # Run tests
   test:
     needs: check
-    # if: ${{ needs.check.outputs.cached != 'true' }}
+    if: ${{ needs.check.outputs.cached != 'true' }}
     # https://github.com/actions/runner-images/blob/main/images/windows/Windows2022-Readme.md
     runs-on: windows-latest
     strategy:
