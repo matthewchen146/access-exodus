@@ -23,10 +23,10 @@ jobs:
         uses: actions/cache@v3
         with:
           path: src_cache.txt
-          key: ${{ hashFiles( 'src/**/*', 'tests/**/*' ) }}
+          key: ${{ hashFiles( 'accex/**/*', 'tests/**/*' ) }}
       
       - name: Create cache file
-        run: echo "${{ hashFiles( 'src/**/*', 'tests/**/*' ) }}" > src_cache.txt
+        run: echo "${{ hashFiles( 'accex/**/*', 'tests/**/*' ) }}" > src_cache.txt
 
       - name: Display cache state
         run: echo "cache hit ${{ steps.src-cache.outputs.cache-hit }}"
