@@ -45,9 +45,9 @@ Usage
 
     **⚠ Warning: Currently drops any existing tables in the target database and creates new tables**
 
-- With the executable: `accex <path-to-config-file>`
-    - If a config file is not specified, the program will find one in the current working directory with the `.accex` extension.
-- From source: `python -m accex <path-to-config-file>`
+- With the executable: ``accex <path-to-config-file>``
+    - If a config file is not specified, the program will find one in the current working directory with the ``.accex`` extension.
+- From source: ``python -m accex <path-to-config-file>``
 
 `Documentation <https://matthewchen146.github.io/access-exodus/>`_
 
@@ -69,6 +69,13 @@ Database         Version
 ---------------- ---------
 PostgreSQL       14^
 ================ =========
+
+Planned Features
+----------------
+
+- Choose whether to drop, insert, or join duplicate target tables per table
+- GUI for creating config
+- Recommend, download, and install ODBC drivers automatically based on selected databases
 
 Useful Links
 ------------
