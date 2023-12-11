@@ -17,17 +17,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.BRANCH }}
-
-      - name: Install genbadge
-        run: pip install genbadge[tests,coverage]
-
+      
       - name: Download reports
         uses: dawidd6/action-download-artifact@v2
         with:
           name: test-reports
           path: reports
           workflow: tests.yml
-
+  
+      - name: Install genbadge
+        run: pip install genbadge[tests,coverage]
+      
       - name: Generate badges
         run: |
           genbadge tests -o assets/badges/tests-badge.svg
