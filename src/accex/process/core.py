@@ -26,7 +26,7 @@ async def open_src_connection(new_src_conn_str: str) -> aioodbc.Cursor:
     if _src_conn is None or new_src_conn_str != _src_conn_str:
         _src_conn_str = new_src_conn_str
         await close_src_connection()
-        logging.info(f'connecting via connection string [{_src_conn_str}]')
+        logging.info(f'connecting to source via connection string [{_src_conn_str}]')
         _src_conn = await aioodbc.connect(dsn=_src_conn_str)
         _src_cur = await _src_conn.cursor()
     return _src_cur
@@ -39,7 +39,7 @@ async def open_tgt_connection(new_tgt_conn_str: str) -> aioodbc.Cursor:
     if _tgt_conn is None or new_tgt_conn_str != _tgt_conn_str:
         _tgt_conn_str = new_tgt_conn_str
         await close_tgt_connection()
-        logging.info(f'connecting via connection string [{_tgt_conn_str}]')
+        logging.info(f'connecting to target via connection string [{_tgt_conn_str}]')
         _tgt_conn = await aioodbc.connect(dsn=_tgt_conn_str, after_created=_conn_attributes, autocommit=True)
         _tgt_cur = await _tgt_conn.cursor()
     return _tgt_cur
