@@ -25,7 +25,7 @@ See below for useful links on intalling and using ODBC drivers.
 Current Features
 ----------------
 
-- Transfer tables from multiple Access databases to one target database
+- Transfer tables from one or more Access databases to one target database
 - Define transfer specification in one config file
 
 Not Supported
@@ -33,6 +33,12 @@ Not Supported
 
 - GUI is work in progress
 - Table schema not fully implemented
+
+Requirements
+------------
+
+- Only works on Windows
+- ODBC drivers for source and target databases
 
 Usage
 -----
@@ -45,10 +51,20 @@ Usage
 
 `Documentation <https://matthewchen146.github.io/access-exodus/>`_
 
-Currently Supported Database Targets
-------------------------------------
+Currently Supported (Tested) Databases
+-----------------------------
+
+============================== =================
+Sources
+================================================
+Database                       Version
+------------------------------ -----------------
+Microsoft Access               2007-2016
+============================== =================
 
 ================ =========
+Targets
+==========================
 Database         Version  
 ---------------- ---------
 PostgreSQL       14^
