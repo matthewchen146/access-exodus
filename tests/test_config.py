@@ -100,12 +100,12 @@ def test_resolve_config_path():
         assert ac.resolve_config_path() == test_config_path
 
         with patch.object(sys, "argv", [ __file__, test_config_name ]):
-            assert ac.resolve_config_path() == test_config_path
+            assert ac.resolve_config_path(test_config_name) == test_config_path
         with patch.object(sys, "argv", [ __file__, test_config_path ]):
-            assert ac.resolve_config_path() == test_config_path
+            assert ac.resolve_config_path(test_config_path) == test_config_path
         with patch.object(sys, "argv", [ __file__, "invalid_config_path.accex" ]):
             with pytest.raises(ValueError):
-                ac.resolve_config_path()
+                ac.resolve_config_path("invalid_config_path.accex")
 
 def test_remove_comments():
     s = "Cool\n\ncool"
