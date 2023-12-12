@@ -449,14 +449,14 @@ class Config(dict):
         self["TARGETS"] = value
 
     @property
-    def target_dsn_params(self) -> dict:
+    def target_dsn_params(self) -> BlockValue[RecordValue[str]]:
         return self["TARGET_DSN_PARAMS"]
     @target_dsn_params.setter
     def target_dsn_params(self, value) -> None:
         self["TARGET_DSN_PARAMS"] = value
     
     @property
-    def source_dsn_params(self) -> dict:
+    def source_dsn_params(self) -> BlockValue[RecordValue[str]]:
         return self["SOURCE_DSN_PARAMS"]
     @source_dsn_params.setter
     def source_dsn_params(self, value) -> None:
@@ -639,11 +639,9 @@ def find_config_path() -> str | None:
             return os.path.abspath(file_name)
     return None
 
-def resolve_config_path() -> str | None:
+def resolve_config_path(config_path_arg: str = "") -> str | None:
     config_path = None
-    args = _parse_args()
-    if args.config_path:
-        config_path_arg = args.config_path
+    if config_path_arg:
         if os.path.exists(config_path_arg):
             config_path = os.path.abspath(config_path_arg)
         else:
@@ -652,16 +650,18 @@ def resolve_config_path() -> str | None:
         config_path = find_config_path()
     return config_path
 
-def _setup_argparse(main: bool = False, force: bool = False) -> argparse.ArgumentParser:
-    global _arg_parser
-    if _arg_parser and not force:
-        return _arg_parser
-    parser = argparse.ArgumentParser(prog="accex")
+def populate_arg_parser(parser: argparse.ArgumentParser, main: bool = False) -> argparse.ArgumentParser:
     parser.add_argument(
         "config_path",
         type=str,
         help="path to a config file",
         nargs="?"
+    )
+    parser.add_argument(
+        "--log-level",
+        type=str,
+        default="INFO",
+        help="log level for logging"
     )
     if main:
         parser.add_argument(
@@ -680,17 +680,14 @@ def _setup_argparse(main: bool = False, force: bool = False) -> argparse.Argumen
             type=str,
             help="write output to specified file path",
         )
-
-    _arg_parser = parser
     return parser
 
-def _parse_args(main: bool = False) -> argparse.Namespace:
-    return _setup_argparse(main).parse_args()
-
 def _main():
-    _setup_argparse(True, True)
-    args = _parse_args()
-    config_path = resolve_config_path()
+    arg_parser = argparse.ArgumentParser(prog="accex")
+    populate_arg_parser(arg_parser, True)
+    args = arg_parser.parse_args()
+    logging.basicConfig(level=logging.getLevelNamesMapping()[args.log_level])
+    config_path = resolve_config_path(args.config_path)
     if not config_path:
         logging.info("no config file specified/found")
         sys.exit(1)
