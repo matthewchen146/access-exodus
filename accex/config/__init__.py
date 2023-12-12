@@ -27,7 +27,8 @@ from .core import (
     write_config,
     write_config_file,
     find_config_path,
-    resolve_config_path
+    resolve_config_path,
+    populate_arg_parser
 )
 __all__ = [
     "ValidationError",
@@ -58,5 +59,6 @@ __all__ = [
     "write_config",
     "write_config_file",
     "find_config_path",
-    "resolve_config_path"
+    "resolve_config_path",
+    "populate_arg_parser"
 ]
