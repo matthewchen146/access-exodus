@@ -13,7 +13,7 @@ MAX_PARAM_COUNT_DEFAULT = 1000
 The default max amount of parameters that can be used at once in a query.
 """
 MAX_PARAM_COUNTS = {
-    "PostgreSQL Unicode": 7499
+    "PostgreSQL Unicode": 7498
 }
 """
 Maps the driver name to the amount of max parameters that can be used at once in a query.
