@@ -35,6 +35,13 @@ def main():
         help="path to the driver"
     )
 
+    maxparam_parser = sub_parsers.add_parser("maxparam", help="test for the max param markers of a driver/database")
+    maxparam_parser.add_argument(
+        "conn_str",
+        type=str,
+        help="connection string to connect to the database"
+    )
+
     args = arg_parser.parse_args()
 
     if args.cmd == 'ls':
@@ -87,6 +94,39 @@ def main():
                     winreg.SetValueEx(driver_key, "Driver", 0, winreg.REG_SZ, driver_path)
                     winreg.SetValueEx(driver_key, "Setup", 0, winreg.REG_SZ, driver_path)
                 print(f"successfully registered \"{driver_name}\"")
+    elif args.cmd == 'maxparam':
+        import pyodbc
+        # "Driver=PostgreSQL Unicode;Server=localhost;Port=8000;Database=postgres;Uid=postgres;Pwd=123"
+        conn_str = args.conn_str
+        print(f"connecting via connection string [{conn_str}]")
+        conn = pyodbc.connect(conn_str)
+        cur = conn.cursor()
+        test_table_name = "__test"
+        # cur.execute(f"CREATE TABLE IF NOT EXISTS {test_table_name} (id serial primary key, v int)")
+
+        min_count = 1000
+        max_count = 10000
+        while min_count < max_count:                
+            cur.execute(f"CREATE TABLE IF NOT EXISTS {test_table_name} (id serial primary key, v int)")
+            cur.execute(f"DELETE FROM {test_table_name}")
+            mid_count = (max_count + min_count) // 2
+            try:
+                print(f"inserting [{mid_count}]")
+                cur.execute(f"INSERT INTO {test_table_name} (v) VALUES {','.join('(?)' for _ in range(mid_count))}", [i for i in range(mid_count)])
+                min_count = mid_count + 1
+                print(f"success")
+            except:
+                max_count = mid_count
+                print(f"failure")
+                # reconnect
+                conn = pyodbc.connect(conn_str)
+                cur = conn.cursor()
+        print(f"max params [{min_count - 1}]")
+
+        cur.execute(f"DROP TABLE {test_table_name}")
+
+        cur.close()
+        conn.close()
 
 if __name__ == "__main__":
     main()
