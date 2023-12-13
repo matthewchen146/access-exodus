@@ -16,7 +16,7 @@ Access Exodus
 
 This program aims to transfer data from Microsoft Access databases to a different SQL database.
 Special config files with database and table information are read to determine what/where/how tables and columns are transferred.
-The program relies on ODBC drivers and `aioodbc <https://github.com/aio-libs/aioodbc>`_ and `pyodc <https://github.com/mkleehammer/pyodbc>`_ to connect to both source and target databases
+The program relies on ODBC drivers and `aioodbc <https://github.com/aio-libs/aioodbc>`_ and `pyodbc <https://github.com/mkleehammer/pyodbc>`_ to connect to both source and target databases
 For now, ODBC drivers will have to be installed manually.
 See below for useful links on intalling and using ODBC drivers.
 
@@ -54,21 +54,21 @@ Usage
 Currently Supported (Tested) Databases
 -----------------------------
 
-============================== =================
-Sources
-================================================
-Database                       Version
------------------------------- -----------------
-Microsoft Access               2007-2016
-============================== =================
++==================+========================+===========+
+| Sources          |                        |           |
++==================+========================+===========+
+| Database         | Driver                 | Version   |
++------------------+------------------------+-----------+
+| Microsoft Access | Access Database Engine | 2010-2016 |
++==================+========================+===========+
 
-================ =========
-Targets
-==========================
-Database         Version  
----------------- ---------
-PostgreSQL       14^
-================ =========
++============+====================+=========+
+| Targets    |                    |         |
++============+====================+=========+
+| Database   | Driver             | Version |
++------------+--------------------+---------+
+| PostgreSQL | PostgreSQL Unicode | 14^     |
++============+====================+=========+
 
 Planned Features
 ----------------
