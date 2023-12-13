@@ -10,6 +10,9 @@ concurrency:
   group: tests
   cancel-in-progress: true
 
+env:
+  ASSETS_BRANCH: assets
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -138,15 +141,41 @@ jobs:
         run: python scripts/odbc_driver.py ls --info
 
       - name: Run tests
+        id: tests
         continue-on-error: true
         run: poetry run pytest
+
+      # - name: Checkout assets
+      #   uses: actions/checkout@v4
+      #   with:
+      #     ref: ${{ env.ASSETS_BRANCH }}
+
+      # - name: Commit and push test reports
+      #   run: |
+      #     git config user.name github-actions
+      #     git config user.email github-actions@github.com
+      #     git add reports/
+      #     git commit -m "Created test reports"
+      #     git push origin ${{ env.ASSETS_BRANCH }}
 
       - name: Upload test reports
         uses: actions/upload-artifact@v3
         with:
           name: test-reports
           path: reports
+      
+      - name: Dispatch assets event
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          event-type: assets
+
+      - name: Determine final job status
+        if: ${{ steps.tests.conclusion != 'success' }}
+        run: |
+          echo "tests did not pass"
+          exit 1
+        shell: bash
   
-  assets:
-    needs: test
-    uses: matthewchen146/access-exodus/.github/workflows/assets.yml@main
+  # assets:
+  #   needs: test
+  #   uses: matthewchen146/access-exodus/.github/workflows/assets.yml@main

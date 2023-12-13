@@ -2,7 +2,9 @@ name: Create assets
 
 on:
   workflow_call:
-  workflow_dispatch: 
+  workflow_dispatch:
+  repository_dispatch:
+    types: [assets]
 
 jobs:
   # Create badges
