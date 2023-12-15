@@ -47,6 +47,11 @@ class SourceTablePointer:
         self.catalog_name = self.catalog_name or catalog_name
         self.table_name = self.table_name or table_name
     
+    def __eq__(self, __value: object) -> bool:
+        return isinstance(__value, SourceTablePointer) and \
+            __value.catalog_name == self.catalog_name and \
+            __value.table_name == self.table_name
+
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.catalog_name}.{self.table_name})"
 
@@ -162,7 +167,7 @@ class TargetColumnPointer:
         tgt_table_cols = self.table.get_columns_block(config)
         # assert column name in target table
         if self.column_name not in tgt_table_cols:
-            raise ValidationError(f'{str(self.table)} deos not have a column named [{self.column_name}]')
+            raise ValidationError(f'{self.table} does not have a column named \"{self.column_name}\"')
 
 class TargetRowPointer:
     match_directives = {
@@ -388,6 +393,29 @@ class SourcesBlock(list[SourceTableBlock]):
         args = tuple(largs)
         super().__init__(*args, **kwargs)
 
+    def __getitem__(self, index: object) -> SourceTableBlock:
+        if not isinstance(index, int):
+            if isinstance(index, str):
+                index = SourceTablePointer.from_str(index)
+            if isinstance(index, SourceTablePointer):
+                i = 0
+                for v in self:
+                    if v.table_pointer == index:
+                        index = i
+                        break 
+                    i += 1
+        return super().__getitem__(index)
+
+    def __contains__(self, __key: object) -> bool:
+        if not isinstance(__key, SourceTablePointer):
+            __key = SourceTablePointer(__key)
+        if isinstance(__key, SourceTablePointer):
+            for v in self:
+                if v.table_pointer == __key:
+                    return True
+            return False
+        return super().__contains__(__key)
+
     def append(self, __object: object) -> None:
         if not isinstance(__object, SourcesBlock):
             __object = SourcesBlock(__object)
@@ -396,6 +424,8 @@ class SourcesBlock(list[SourceTableBlock]):
     def validate(self, config: _TConfig):
         for v in self:
             v.validate(config)
+
+
 
 
 class TargetTableBlockColumns(dict[str, str]):
@@ -432,6 +462,8 @@ class TargetTableBlock(dict[str, str | dict]):
             raise ValidationError("Missing TABLE")
         if "COLUMNS" not in self:
             raise ValidationError("Missing COLUMNS")
+
+
 
 
 class TargetsBlock(dict[TargetTablePointer, TargetTableBlock]):
@@ -482,7 +514,7 @@ class TargetsBlock(dict[TargetTablePointer, TargetTableBlock]):
         
         if not isinstance(__key, TargetTablePointer):
             if isinstance(__key, str):
-                __key = parse_target_table_pointer(__key)
+                __key = TargetTablePointer.from_str(__key)
             else:
                 __key = TargetTablePointer(__key)
         return __key
@@ -493,7 +525,7 @@ class TargetsBlock(dict[TargetTablePointer, TargetTableBlock]):
             if not isinstance(k, TargetTablePointer):
                 raise ValidationError(f"Target {k} must be a {TargetTablePointer.__name__}")
             v.validate(config)
-        
+
 
 class Config(dict):
 
@@ -568,6 +600,26 @@ class Config(dict):
         self.source_databases.validate(self)
         if "SOURCES" not in self: raise ValidationError("Missing SOURCES")
         self.sources.validate(self)
+
+
+# FIXME: create a yaml representer method in each class, and have all classes be called
+for _class in [
+    SourceTableBlockColumns,
+    SourceDatabase,
+    SourceDatabases,
+    SourceTableBlock,
+    TargetTableBlockColumns,
+    TargetTableBlock,
+    Config,
+]:
+    yaml.add_representer(_class, lambda dumper, data: dumper.represent_dict(data))
+
+yaml.add_representer(SourceColumnMapFunction, lambda dumper, data: dumper.represent_str(f"{data.to_column.column_name} WITH {data.with_column.table.table_name}.{data.with_column.column_name} FROM ROW({data.from_row.select_column.table.table_name}.{data.from_row.select_column.column_name}, @{data.from_row.match_directive})"))
+yaml.add_representer(SourceTablePointer, lambda dumper, data: dumper.represent_str(f"{data.catalog_name and data.catalog_name + '.' or ''}{data.table_name}"))
+yaml.add_representer(TargetTablePointer, lambda dumper, data: dumper.represent_str(data.to_sql_str()))
+yaml.add_representer(TargetColumnPointer, lambda dumper, data: dumper.represent_str(data.column_name))
+yaml.add_representer(SourcesBlock, lambda dumper, data: dumper.represent_list(data))
+yaml.add_representer(TargetsBlock, lambda dumper, data: dumper.represent_list(data.values()))
 
 
 def _remove_comments(s: str) -> str:
