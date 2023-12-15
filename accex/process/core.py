@@ -55,6 +55,19 @@ _tgt_conn_str: str = ''
 _tgt_conn: aioodbc.Connection | None = None
 _tgt_cur: aioodbc.Cursor | None = None
 
+_transfer_context = {}
+
+def reset_transfer_context():
+    global _transfer_context
+    _transfer_context = {
+        "created_tables": {}
+    }
+    return _transfer_context
+
+def get_transfer_context():
+    global _transfer_context
+    return _transfer_context
+
 async def open_src_connection(new_src_conn_str: str) -> aioodbc.Cursor:
     """Creates connection to source database using connection string.
     If the connection is the same as the previous connection, the connection is kept open.
@@ -155,7 +168,7 @@ def get_tgt_conn_str(config: ac.Config, table_name: str = "") -> str:
         return ""
     return create_conn_str({ **config.target_dsn_params, **config.targets[table_name].dsn_params })
 
-async def transfer_table(config: ac.Config, src_table_name: str, tgt_table_name: str) -> bool:
+async def transfer_table(config: ac.Config, src_table: ac.SourceTableBlock, tgt_table: ac.TargetTableBlock) -> bool:
     global _src_cur
     global _tgt_cur
 
@@ -163,15 +176,14 @@ async def transfer_table(config: ac.Config, src_table_name: str, tgt_table_name:
     start_time = time.time()
 
     try:
-        src_table = config.sources[src_table_name]
+        src_table_name = src_table.table_pointer.table_name
+        tgt_table_name = tgt_table.name
 
-        tgt_table = config.targets[tgt_table_name]
-        
         src_table_columns = src_table.columns
 
         true_tgt_table_columns = tgt_table.columns
 
-        src_dsn_params = {**config.source_dsn_params, **src_table.dsn_params}
+        src_dsn_params = {**config.get_source_dsn_params_with_catalog(src_table.table_pointer.catalog_name), **src_table.dsn_params}
         new_src_conn_str = create_conn_str(src_dsn_params)
         logger.info(f"connecting to source database")
         await open_src_connection(new_src_conn_str)
@@ -187,22 +199,34 @@ async def transfer_table(config: ac.Config, src_table_name: str, tgt_table_name:
         if src_table_name not in source_table_name_dict:
             raise ac.ValidationError(f'Source database deos not have a table named [{src_table_name}]')
 
-        # once validation is finished, create tables in the target
-        # drop original table if that is in the settings
-        await _tgt_cur.execute(f'DROP TABLE IF EXISTS {tgt_table_name} CASCADE')
-        logger.info(f'creating target table [{tgt_table_name}]')
-        
-        await _tgt_cur.execute(f'CREATE TABLE IF NOT EXISTS {tgt_table_name} ({",".join([f"{cname} {ctype}" for cname, ctype in true_tgt_table_columns.items()])})')
+        # FIXME: support catalog and schema
+        if not tgt_table_name in _transfer_context["created_tables"]:
+            # once validation is finished, create tables in the target
+            # drop original table if that is in the settings
+            await _tgt_cur.execute(f'DROP TABLE IF EXISTS {tgt_table_name} CASCADE')
+            logger.info(f'creating target table \"{tgt_table_name}\"')
+            await _tgt_cur.execute(f'CREATE TABLE IF NOT EXISTS {tgt_table_name} ({",".join([f"{cname} {ctype}" for cname, ctype in true_tgt_table_columns.items()])})')
+            _transfer_context["created_tables"][tgt_table_name] = tgt_table_name
 
         driver_name = ""
         for k, v in tgt_dsn_params.items():
             if k.lower() == "driver":
-                driver_name = v.value
+                driver_name = v
 
         total_src_row_count: int = (await (await _src_cur.execute(f"SELECT COUNT(*) FROM {src_table_name}")).fetchone())[0]
         total_src_row_count_strlen = len(str(total_src_row_count))
 
-        max_param_count = get_max_param_count(driver_name)
+        max_param_count = 0
+        if driver_name not in MAX_PARAM_COUNTS:
+            try:
+                from util import generate_max_param_count
+                max_param_count = generate_max_param_count(new_tgt_conn_str)
+                MAX_PARAM_COUNTS[driver_name] = max_param_count
+            except:
+                max_param_count = get_max_param_count(driver_name)
+                MAX_PARAM_COUNTS[driver_name] = max_param_count
+        else:
+            max_param_count = get_max_param_count(driver_name)
         row_size = len(src_table_columns)
         chunk_size = int(max_param_count / row_size)
         
@@ -245,10 +269,10 @@ async def transfer_table(config: ac.Config, src_table_name: str, tgt_table_name:
             col_index = 0
             for k, v in src_table_columns.items():
                 try:
-                    if isinstance(v.value, ac.TargetColumnPointer):
-                        tgt_table_column_names.append(v.value.column_name)
-                    if isinstance(v.value, ac.SourceColumnMapFunction):
-                        f = v.value
+                    if isinstance(v, ac.TargetColumnPointer):
+                        tgt_table_column_names.append(v.column_name)
+                    elif isinstance(v, ac.SourceColumnMapFunction):
+                        f = v
                         tgt_table_column_names.append(f.to_column.column_name)
                         await _tgt_cur.execute(
                             f"SELECT {f.from_row.select_column.column_name}, {f.with_column.column_name} " +\
@@ -258,10 +282,10 @@ async def transfer_table(config: ac.Config, src_table_name: str, tgt_table_name:
                         )
                         with_rows = await _tgt_cur.fetchall()
                         match_dict = dict(with_rows)
-                        # print(json.dumps(match_dict, indent=2))
                         for row_index in range(src_row_count):
                             # replace column in source row with a match using the source column value as key
                             src_rows[row_index][col_index] = match_dict.get(src_rows[row_index][col_index])
+                    # elif isinstance(v, )
                 except Exception as e:
                     raise TransferError(f"source column read failed for {k} - {e}")
                 col_index += 1
@@ -338,31 +362,30 @@ async def transfer(config: ac.Config, allow_prompts: bool = False):
         return
     logger.info("validated config")
 
-    def source_table_order_compare(a, b):
-        ta: ac.SourceTableBlock = a[1]
-        tb: ac.SourceTableBlock = b[1]
+    def source_table_order_compare(ta: ac.SourceTableBlock, tb: ac.SourceTableBlock):
         # if ta depends on tb
         # if so, tb should go before ta
-        if tb.target in ta.target_table_deps:
+        if tb.target_pointer in ta.target_table_deps:
             return 1
-        if ta.target in tb.target_table_deps:
+        if ta.target_pointer in tb.target_table_deps:
             return -1
         return 0
 
     # sort source tables based on their dependencies
-    source_tables = sorted(config.sources.items(), key=cmp_to_key(source_table_order_compare))
+    source_tables = sorted(config.sources, key=cmp_to_key(source_table_order_compare))
 
     try:
-        for src_table_name, src_table in source_tables:
-            tgt_table = src_table.target
-            tgt_table_name = tgt_table.table_name
-            success = await transfer_table(config, src_table_name, tgt_table_name)
+        reset_transfer_context()
+
+        for src_table in source_tables:
+            tgt_table = config.targets[src_table.target_pointer]
+            success = await transfer_table(config, src_table, tgt_table)
             if not success:
-                logger.warn(f"transfer from [{src_table_name}] to {tgt_table} failed")
+                logger.warn(f"transfer from {src_table} to {tgt_table} failed")
                 if allow_prompts:
                     user_input = input(f"skip table? (y/N)")
                     if user_input.lower() == 'y':
-                        logger.warn(f"skipping [{src_table_name}]")
+                        logger.warn(f"skipping {src_table}")
                     else:
                         logger.warn('cancelling transfer')
                         break
