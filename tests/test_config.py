@@ -160,7 +160,7 @@ TARGET_DSN_PARAMS {{
 
 
 def test_parse_config():
-    config_text, answer_dict = generate_config_text()
+    config_text = read_file("./tests/configs/config.accex")
     config = ac.parse_config(config_text)
     assert config
 
@@ -173,6 +173,7 @@ def test_write_config():
     config = ac.parse_config(config_text)
     out_config_text = ac.write_config(config)
     out_config = ac.parse_config(out_config_text)
+    out_config.validate()
     assert config == out_config
 
 def test_write_config_file():
