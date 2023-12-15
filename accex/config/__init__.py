@@ -1,7 +1,5 @@
 from .core import (
     ValidationError,
-    RecordValue,
-    BlockValue,
     target_default_schema,
     get_target_default_schema,
     TargetTablePointer,
@@ -32,8 +30,6 @@ from .core import (
 )
 __all__ = [
     "ValidationError",
-    "RecordValue",
-    "BlockValue",
     "target_default_schema",
     "get_target_default_schema",
     "TargetTablePointer",
