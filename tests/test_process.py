@@ -17,9 +17,10 @@ async def test_transfer(shared):
 
     await ap.transfer(config)
     # verify that data matches
-    for src_name, src in config.sources.items():
-        src_conn_str = ap.get_src_conn_str(config, src_name)
-        tgt_conn_str = ap.get_tgt_conn_str(config, src.target.table_name)
+    for src in config.sources:
+        src_name = src.table_pointer.table_name
+        src_conn_str = ap.get_src_conn_str(config, src.table_pointer)
+        tgt_conn_str = ap.get_tgt_conn_str(config, src.target_pointer)
 
         src_cur = await ap.open_src_connection(src_conn_str)
         tgt_cur = await ap.open_tgt_connection(tgt_conn_str)
@@ -28,24 +29,24 @@ async def test_transfer(shared):
         # check target table created 
         tgt_tables = await ap.get_table_name_dict(tgt_cur)
         # FIXME: support schema in the future
-        assert src.target.table_name in tgt_tables
+        assert src.target_pointer.table_name in tgt_tables
         
         logging.info("checking target columns")
         # check columns created
-        tgt_cols = await ap.get_column_name_dict(tgt_cur, src.target.table_name, src.target.schema_name)
+        tgt_cols = await ap.get_column_name_dict(tgt_cur, src.target_pointer.table_name, src.target_pointer.schema_name)
         for col in src.columns.values():
             if isinstance(col, ac.TargetColumnPointer):
-                assert col.column_name in tgt_cols, f"missing \"{col.column_name}\" in {src.target}"
+                assert col.column_name in tgt_cols, f"missing \"{col.column_name}\" in {src.target_pointer}"
             elif isinstance(col, ac.SourceColumnMapFunction):
-                assert col.to_column.column_name in tgt_cols, f"missing \"{col.to_column.column_name}\" in {src.target}"
+                assert col.to_column.column_name in tgt_cols, f"missing \"{col.to_column.column_name}\" in {src.target_pointer}"
         
         logging.info("checking table counts")
         # check row count
         await src_cur.execute(f"SELECT COUNT(*) AS count FROM {src_name}")
         src_count = (await src_cur.fetchone())[0]
-        await tgt_cur.execute(f"SELECT COUNT(*) AS count FROM {src.target.to_sql_str()}")
+        await tgt_cur.execute(f"SELECT COUNT(*) AS count FROM {src.target_pointer.to_sql_str()}")
         tgt_count = (await tgt_cur.fetchone())[0]
-        assert src_count == tgt_count, f"Source {src_name} count ({src_count}) does not match Target {src.target.to_sql_str()} count ({tgt_count})"
+        assert src_count == tgt_count, f"{src} count ({src_count}) does not match {src.target_pointer} count ({tgt_count})"
 
     shared[test_transfer.__name__] = True
 

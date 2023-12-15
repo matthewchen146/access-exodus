@@ -154,19 +154,21 @@ def create_conn_str(*args: list[dict]) -> str:
         params = {**params, **p}
     return ";".join([f"{k}={v}" for k, v in params.items()])
 
-def get_src_conn_str(config: ac.Config, table_name: str = "") -> str:
-    if not table_name:
+def get_src_conn_str(config: ac.Config, source_table_pointer: ac.SourceTablePointer | str = None) -> str:
+    if not source_table_pointer:
         return create_conn_str(config.source_dsn_params)
-    if table_name not in config.sources:
+    if not isinstance(source_table_pointer, ac.SourceTablePointer):
+        source_table_pointer = ac.SourceTablePointer(source_table_pointer)
+    if source_table_pointer not in config.sources:
         return ""
-    return create_conn_str({ **config.source_dsn_params, **config.sources[table_name].dsn_params })
+    return create_conn_str(config.get_source_dsn_params_with_catalog(source_table_pointer.catalog_name), config.sources[source_table_pointer].dsn_params)
 
-def get_tgt_conn_str(config: ac.Config, table_name: str = "") -> str:
-    if not table_name:
+def get_tgt_conn_str(config: ac.Config, target_table_pointer: ac.TargetTablePointer = None) -> str:
+    if not target_table_pointer:
         return create_conn_str(config.target_dsn_params)
-    if table_name not in config.targets:
+    if target_table_pointer not in config.targets:
         return ""
-    return create_conn_str({ **config.target_dsn_params, **config.targets[table_name].dsn_params })
+    return create_conn_str(config.target_dsn_params, config.targets[target_table_pointer].dsn_params)
 
 async def transfer_table(config: ac.Config, src_table: ac.SourceTableBlock, tgt_table: ac.TargetTableBlock) -> bool:
     global _src_cur
