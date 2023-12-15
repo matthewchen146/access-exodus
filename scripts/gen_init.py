@@ -117,8 +117,9 @@ def main():
     output_imports = ""
     output_all = ""
 
-    for path in str.split(args.include_path, ","):
-        sys.path.append(os.path.abspath(path))
+    if args.include_path:
+        for path in str.split(args.include_path, ","):
+            sys.path.append(os.path.abspath(path))
 
     for mod_path in args.module_path:
         mod = importlib.import_module(mod_path)
