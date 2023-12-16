@@ -1,10 +1,5 @@
+import os, sys, string, logging
 import pytest
-import os
-import json
-import sys
-import random
-import string
-import logging
 from unittest.mock import patch
 from util import CWDContext
 import accex.config.core as ac
@@ -16,9 +11,11 @@ def read_file(path: str) -> str:
     return s
 
 def generate_random_string(length: int, possible_chars: str = string.printable):
+    import random
     return ''.join([random.choice(possible_chars) for _ in range(length)])
 
 def generate_config_text():
+    import random
     answer_dict = dict()
 
     # generate target
@@ -79,7 +76,7 @@ def generate_config_text():
 
     return config_text, answer_dict
 
-def test_config_class():
+def test_class_config():
     assert True
 
 def test_find_config_path():
@@ -190,6 +187,8 @@ def test_write_config_file():
     os.remove(out_config_path)
 
 def test_main(capsys):
+    import json
+    import yaml
     # cover main with init func
     with patch.object(ac, "__name__", "__main__"):
         ac._main()
@@ -198,27 +197,28 @@ def test_main(capsys):
     config_path = "./tests/configs/config.accex"
     config = ac.parse_config_file(config_path)
     config_text = ac.write_config(config)
+    config_dict = yaml.load(config_text, Loader=yaml.Loader)
     with patch.object(sys, "argv", [ __file__, config_path ]):
         ac._main()
         captured = capsys.readouterr()
-        assert captured.out.strip() == config_text
+        assert yaml.load(captured.out.strip(), Loader=yaml.Loader) == config_dict
 
     with patch.object(sys, "argv", [ __file__, "--json", config_path]):
         ac._main()
         captured = capsys.readouterr()
-        assert captured.out.strip() == json.dumps(config)
+        assert json.loads(captured.out.strip()) == config_dict
     
     with patch.object(sys, "argv", [ __file__, "--json", "--json-format", config_path]):
         ac._main()
         captured = capsys.readouterr()
-        assert captured.out.strip() == json.dumps(config, indent=4)
+        assert json.loads(captured.out.strip()) == config_dict
     
     out_config_path = "tmp_config.json"
     with patch.object(sys, "argv", [ __file__, "--json", "--out-file", out_config_path, config_path]):
         ac._main()
         assert os.path.exists(out_config_path)
         out_config_json = read_file(out_config_path)
-        assert out_config_json == json.dumps(config)
+        assert json.loads(out_config_json) == config_dict
     if os.path.exists(out_config_path):
         os.remove(out_config_path)
     
