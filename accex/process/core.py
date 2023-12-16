@@ -383,16 +383,16 @@ async def transfer(config: ac.Config, allow_prompts: bool = False):
             tgt_table = config.targets[src_table.target_pointer]
             success = await transfer_table(config, src_table, tgt_table)
             if not success:
-                logger.warn(f"transfer from {src_table} to {tgt_table} failed")
+                logger.warning(f"transfer from {src_table} to {tgt_table} failed")
                 if allow_prompts:
                     user_input = input(f"skip table? (y/N)")
                     if user_input.lower() == 'y':
-                        logger.warn(f"skipping {src_table}")
+                        logger.warning(f"skipping {src_table}")
                     else:
-                        logger.warn('cancelling transfer')
+                        logger.warning('cancelling transfer')
                         break
                 else:
-                    logger.warn("cancelling transfer")
+                    logger.warning("cancelling transfer")
                     break
     finally:
         # close connections
