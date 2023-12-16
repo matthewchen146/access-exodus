@@ -1,14 +1,7 @@
-from _collections_abc import dict_keys
-import json
-import os
-import sys
-import logging
+import os, sys, argparse, logging
 import pyparsing as pp
-from typing import Any, Callable, TypeVar, ItemsView, KeysView, ValuesView, Generic, Self, TypedDict
-from typing_extensions import Unpack
-import re
+from typing import Any, TypeVar, Generic, Self
 import dotenv
-import argparse
 import yaml
 
 class ValidationError(Exception):
@@ -25,8 +18,18 @@ def get_target_default_schema() -> str:
     """Gets the default schema name for target tables, set in target_default_schema"""
     return target_default_schema
 
+_TSerializeableContext = TypeVar("_TSerializeableContext")
 
-class SourceTablePointer:
+class Serializeable(Generic[_TSerializeableContext]):
+    def __serial_repr__(self, dumper: yaml.Dumper, context: _TSerializeableContext) -> object:
+        if isinstance(self, dict):
+            return dumper.represent_dict(self)
+        elif isinstance(self, list):
+            return dumper.represent_list(self)
+        return dumper.represent_str(f"unhandled {self.__class__.__name__}")
+        # raise TypeError(f"{self.__class__} is not Serializeable")
+
+class SourceTablePointer(Serializeable[_TConfig]):
 
     @classmethod
     def from_str(self, s: str) -> Self:
@@ -52,8 +55,14 @@ class SourceTablePointer:
             __value.catalog_name == self.catalog_name and \
             __value.table_name == self.table_name
 
+    def __str__(self) -> str:
+        return f"{self.catalog_name and self.catalog_name + '.' or ''}{self.table_name}"
+
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.catalog_name}.{self.table_name})"
+        return f"{self.__class__.__name__}({self.__str__()})"
+
+    def __serial_repr__(self, dumper, context) -> object:
+        return dumper.represent_str(self.__str__())
 
     def set_from_pointer(self, p: Self) -> None:
         self.catalog_name = p.catalog_name
@@ -64,7 +73,7 @@ class SourceTablePointer:
             if self.catalog_name not in config.source_databases:
                 raise ValidationError(f"Source catalog \"{self.catalog_name}\" not defined")
 
-class TargetTablePointer:
+class TargetTablePointer(Serializeable[_TConfig]):
     """_summary_
     """
 
@@ -97,6 +106,21 @@ class TargetTablePointer:
     
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.to_sql_str()})"
+
+    def __eq__(self, __value: object) -> bool:
+        return isinstance(__value, TargetTablePointer) and self.schema_name == __value.schema_name and self.table_name == __value.table_name
+
+    def __hash__(self) -> int:
+        return hash((self.catalog_name, self.schema_name, self.table_name))
+
+    def __str__(self) -> str:
+        return self.to_sql_str()
+    
+    def __serial_repr__(self, dumper, context: _TConfig) -> object:
+        return dumper.represent_str(self.to_sql_str())
+
+    def to_sql_str(self, with_schema: bool = True) -> str:
+        return ((with_schema and self.schema_name and f"{self.schema_name}.") or "") + (self.table_name or "?")
     
     def set_from_pointer(self, p: Self) -> None:
         if not isinstance(p, TargetTablePointer):
@@ -105,15 +129,6 @@ class TargetTablePointer:
         self.schema_name = p.schema_name
         self.table_name = p.table_name
 
-    def __eq__(self, __value: object) -> bool:
-        return isinstance(__value, TargetTablePointer) and self.schema_name == __value.schema_name and self.table_name == __value.table_name
-
-    def __hash__(self) -> int:
-        return hash((self.catalog_name, self.schema_name, self.table_name))
-
-    def to_sql_str(self, with_schema: bool = True) -> str:
-        return ((with_schema and self.schema_name and f"{self.schema_name}.") or "") + (self.table_name or "?")
-    
     def get_columns_block(self, config: _TConfig) -> dict:
         cols = config.targets[self.table_name].columns
         return cols
@@ -132,7 +147,7 @@ class TargetTablePointer:
         # FIXME: take into account schema
         if self.table_name not in config.targets: raise ValidationError(f"{str(self)} does not point to a table in TARGETS")
 
-class TargetColumnPointer:
+class TargetColumnPointer(Serializeable[_TConfig]):
     def __init__(self, column_name: str, table_name: str, schema_name: str = get_target_default_schema()) -> None:
         self.table = TargetTablePointer(table_name, schema_name)
         self.column_name = column_name
@@ -143,6 +158,16 @@ class TargetColumnPointer:
     
     def __eq__(self, __value: object) -> bool:
         return isinstance(__value, TargetColumnPointer) and self.table == __value.table and self.column_name == __value.column_name
+
+    def __str__(self) -> str:
+        return f"{self.table.to_sql_str()}.{self.column_name}"
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.__str__()})"
+
+    def __serial_repr__(self, dumper, context) -> object:
+        # return dumper.represent_str(self.__str__())
+        return dumper.represent_str(self.column_name)
 
     @property
     def schema_name(self) -> str:
@@ -158,9 +183,6 @@ class TargetColumnPointer:
     def table_name(self, value):
         self.table.table_name = value
 
-    def __repr__(self) -> str:
-        return f"TargetColumnPointer({self.table.to_sql_str()}.{self.column_name})"
-
     def validate(self, config: _TConfig):
         if self.table not in config.targets:
             raise ValidationError(f"{self.table} does not exist in config TARGETS")
@@ -169,7 +191,7 @@ class TargetColumnPointer:
         if self.column_name not in tgt_table_cols:
             raise ValidationError(f'{self.table} does not have a column named \"{self.column_name}\"')
 
-class TargetRowPointer:
+class TargetRowPointer(Serializeable[_TConfig]):
     match_directives = {
         "value": True
     }
@@ -182,14 +204,20 @@ class TargetRowPointer:
         return isinstance(__value, TargetRowPointer) and self.select_column == __value.select_column and self.match_directive == __value.match_directive
 
     def __str__(self) -> str:
-        return f"TargetRowPointer<{str(self.select_column)}, match {self.match_directive}>"
+        return f"ROW({str(self.select_column)}, @{self.match_directive})"
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({str(self.select_column)}, match {self.match_directive})"
+    
+    def __serial_repr__(self, dumper, context) -> object:
+        return dumper.represent_str(self.__str__())
 
     def validate(self, config: _TConfig):
         self.select_column.validate(config)
         if self.match_directive not in TargetRowPointer.match_directives:
             raise ValidationError(f"Invalid match directive @{self.match_directive}, must be one of [{', '.join(k for k in TargetRowPointer.match_directives)}]")
 
-class SourceColumnMapFunction:
+class SourceColumnMapFunction(Serializeable[_TConfig]):
     """Source column function that transforms a source column value to another value before inserting to a target
     """
 
@@ -204,8 +232,14 @@ class SourceColumnMapFunction:
             self.with_column == __value.with_column and \
             self.from_row == __value.from_row
 
+    def __str__(self) -> str:
+        return f"{str(self.to_column)} WITH {str(self.with_column)} FROM {str(self.from_row)}"
+
     def __repr__(self) -> str:
-        return f"SourceColumnMapFunction(to {str(self.to_column)} WITH {str(self.with_column)} FROM {str(self.from_row)})"
+        return f"{self.__class__.__name__}({self.__str__()})"
+
+    def __serial_repr__(self, dumper, context) -> object:
+        return dumper.represent_str(self.__str__())
 
     @property
     def table(self) -> TargetTablePointer:
@@ -217,7 +251,7 @@ class SourceColumnMapFunction:
         self.to_column.validate(config)
 
 
-class SourceTableBlockColumns(dict[str, TargetColumnPointer | SourceColumnMapFunction]):
+class SourceTableBlockColumns(dict[str, TargetColumnPointer | SourceColumnMapFunction], Serializeable[_TConfig]):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._target_table: TargetTablePointer | None = None
@@ -266,7 +300,7 @@ class SourceTableBlockColumns(dict[str, TargetColumnPointer | SourceColumnMapFun
         self._target_table = value
         self.process_columns()
 
-class SourceDatabase(dict[str, object]):
+class SourceDatabase(dict[str, object], Serializeable[_TConfig]):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -277,7 +311,7 @@ class SourceDatabase(dict[str, object]):
     def validate(self, config: _TConfig):
         pass
 
-class SourceDatabases(dict[str, SourceDatabase]):
+class SourceDatabases(dict[str, SourceDatabase], Serializeable[_TConfig]):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for k, v in self.items():
@@ -293,7 +327,7 @@ class SourceDatabases(dict[str, SourceDatabase]):
             v.validate(config)
 
 # contains database, target, and columns
-class SourceTableBlock(dict[str, object]):
+class SourceTableBlock(dict[str, object], Serializeable[_TConfig]):
     Columns = SourceTableBlockColumns
 
     def __init__(self, *args, **kwargs):
@@ -342,6 +376,9 @@ class SourceTableBlock(dict[str, object]):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(table={self.table_pointer} ,target={self.target_pointer})"
 
+    def __serial_repr__(self, dumper: yaml.Dumper, context: _TConfig) -> object:
+        return dumper.represent_dict(sort_dict_with_list(self, ["TABLE", "TARGET_TABLE", "DSN_PARAMS", "COLUMNS"]))
+
     @property
     def table_pointer(self) -> SourceTablePointer:
         return self["TABLE"]
@@ -379,7 +416,7 @@ class SourceTableBlock(dict[str, object]):
             if not isinstance(r, TargetTablePointer): raise ValidationError(f"TARGET_TABLE should be a TargetTablePointer, got {r}")
             r.validate(config)
 
-class SourcesBlock(list[SourceTableBlock]):
+class SourcesBlock(list[SourceTableBlock], Serializeable[_TConfig]):
     def __init__(self, *args, **kwargs):
         largs = list(args)
         for i in range(len(largs)):
@@ -428,12 +465,12 @@ class SourcesBlock(list[SourceTableBlock]):
 
 
 
-class TargetTableBlockColumns(dict[str, str]):
+class TargetTableBlockColumns(dict[str, str], Serializeable[_TConfig]):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
 
-class TargetTableBlock(dict[str, str | dict]):
+class TargetTableBlock(dict[str, str | dict], Serializeable[_TConfig]):
     Columns = TargetTableBlockColumns
 
     def __init__(self, *args, **kwargs):
@@ -443,7 +480,7 @@ class TargetTableBlock(dict[str, str | dict]):
         return hash(parse_target_table_pointer(self.name))
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(table={self.name}, columns={self.columns.keys()})"
+        return f"{self.__class__.__name__}(table={self.name}, columns={self.columns and self.columns.keys()})"
 
     @property
     def name(self) -> str:
@@ -451,7 +488,7 @@ class TargetTableBlock(dict[str, str | dict]):
 
     @property
     def columns(self) -> TargetTableBlockColumns:
-        return self['COLUMNS']
+        return self.get('COLUMNS')
 
     @property
     def dsn_params(self) -> dict[str, str]:
@@ -464,9 +501,7 @@ class TargetTableBlock(dict[str, str | dict]):
             raise ValidationError("Missing COLUMNS")
 
 
-
-
-class TargetsBlock(dict[TargetTablePointer, TargetTableBlock]):
+class TargetsBlock(dict[TargetTablePointer, TargetTableBlock], Serializeable[_TConfig]):
     def __init__(self, *args, **kwargs):
         largs = list(args)
         for i in range(len(largs)):
@@ -507,6 +542,9 @@ class TargetsBlock(dict[TargetTablePointer, TargetTableBlock]):
             return False
         return super().__eq__(__value)
 
+    def __serial_repr__(self, dumper, context: _TConfig) -> object:
+        return dumper.represent_list(list(self.values()))
+
     def add(self, __element: object) -> None:
         self.__setitem__("", __element)
 
@@ -527,7 +565,7 @@ class TargetsBlock(dict[TargetTablePointer, TargetTableBlock]):
             v.validate(config)
 
 
-class Config(dict):
+class Config(dict, Serializeable[_TConfig]):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -553,6 +591,9 @@ class Config(dict):
         elif __key == "TARGETS":
             __value = TargetsBlock(__value)
         super().__setitem__(__key, __value)
+
+    # def __serial_repr__(self, context: _TConfig) -> object:
+    #     return super().__serial_repr__(context)
 
     @property
     def sources(self) -> SourcesBlock:
@@ -601,33 +642,18 @@ class Config(dict):
         if "SOURCES" not in self: raise ValidationError("Missing SOURCES")
         self.sources.validate(self)
 
-
-# FIXME: create a yaml representer method in each class, and have all classes be called
-for _class in [
-    SourceTableBlockColumns,
-    SourceDatabase,
-    SourceDatabases,
-    SourceTableBlock,
-    TargetTableBlockColumns,
-    TargetTableBlock,
-    Config,
-]:
-    yaml.add_representer(_class, lambda dumper, data: dumper.represent_dict(data))
-
-yaml.add_representer(SourceColumnMapFunction, lambda dumper, data: dumper.represent_str(f"{data.to_column.column_name} WITH {data.with_column.table.table_name}.{data.with_column.column_name} FROM ROW({data.from_row.select_column.table.table_name}.{data.from_row.select_column.column_name}, @{data.from_row.match_directive})"))
-yaml.add_representer(SourceTablePointer, lambda dumper, data: dumper.represent_str(f"{data.catalog_name and data.catalog_name + '.' or ''}{data.table_name}"))
-yaml.add_representer(TargetTablePointer, lambda dumper, data: dumper.represent_str(data.to_sql_str()))
-yaml.add_representer(TargetColumnPointer, lambda dumper, data: dumper.represent_str(data.column_name))
-yaml.add_representer(SourcesBlock, lambda dumper, data: dumper.represent_list(data))
-yaml.add_representer(TargetsBlock, lambda dumper, data: dumper.represent_list(data.values()))
-
+def sort_dict_with_list(d: dict, l: list) -> dict:
+    order_map = dict((l[i], i) for i in range(len(l)))
+    return dict(sorted([i for i in d.items()], key=lambda a: order_map.get(a[0]) or 0))
 
 def _remove_comments(s: str) -> str:
+    import re
     pattern = r"(?<!\\)#.*"
     s = re.sub(pattern, '', s)
     return re.sub(r"\\#", '#', s)
 
 def _replace_env_vars(s: str) -> str:
+    import re
     pattern = r"\$(?:{([a-zA-Z_]*)}|([a-zA-Z_]*))"
 
     def replace_env_var(match: re.Match) -> str:
@@ -746,12 +772,39 @@ def parse_config_file(config_file_path: str) -> Config:
     parsed_config = parse_config(s)
     return parsed_config
 
+
+def create_dumper(config: Config):
+    import inspect
+    class CustomDumper(yaml.Dumper):
+        pass
+    serializeable_classes = inspect.getmembers(
+        inspect.getmodule(Serializeable),
+        lambda member: inspect.isclass(member) and issubclass(member, Serializeable)
+    )
+    for _, c in serializeable_classes:
+        if issubclass(c, Serializeable):
+            CustomDumper.add_representer(c, lambda dumper, data: data.__serial_repr__(dumper, config))
+    return CustomDumper
+
 def write_config(config: Config) -> str:
-    config_str: str = yaml.dump(config, default_flow_style=False)
-    
+    """Writes config to a string
+
+    :param config: config
+    :type config: Config
+    :return: the config as a string
+    :rtype: str
+    """
+    config_str = yaml.dump(config, default_flow_style=False, width=float("inf"), sort_keys=False, Dumper=create_dumper(config))
     return config_str
 
 def write_config_file(config: Config, config_file_path: str):
+    """Writes config to a file
+
+    :param config: config
+    :type config: Config
+    :param config_file_path: file path
+    :type config_file_path: str
+    """
     config_str = write_config(config)
 
     with open(config_file_path, 'w') as file:
@@ -813,21 +866,26 @@ def populate_arg_parser(parser: argparse.ArgumentParser, main: bool = False) -> 
     return parser
 
 def _main():
+    import json
+    logger = logging.getLogger("config")
+
     arg_parser = argparse.ArgumentParser(prog="accex")
     populate_arg_parser(arg_parser, True)
     args = arg_parser.parse_args()
     logging.basicConfig(level=logging.getLevelNamesMapping()[args.log_level])
     config_path = resolve_config_path(args.config_path)
     if not config_path:
-        logging.info("no config file specified/found")
+        logger.info("no config file specified and no config file found")
         sys.exit(1)
     config = parse_config_file(config_path)
+    config.validate()
     out = ''
     if args.json:
         if args.json_format:
-            out = json.dumps(config, indent=4)
+            out = json.dumps(yaml.load(write_config(config), Loader=yaml.Loader), indent=2)
+            # out = json.dumps(config, indent=4)
         else:
-            out = json.dumps(config)
+            out = json.dumps(yaml.load(write_config(config), Loader=yaml.Loader))
     else:
         out = write_config(config)
 
