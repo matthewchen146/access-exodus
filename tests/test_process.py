@@ -7,6 +7,75 @@ import accex.process.core as ap
 def shared():
     return {}
 
+def test_get_connection_string():
+    config = ac.Config({
+        "SOURCE_DSN_PARAMS": {
+            "a": "1",
+            "b": "2"
+        },
+        "SOURCE_DATABASES": {
+            "db_a": {
+                "DSN_PARAMS": {
+                    "b": "3"
+                }
+            }
+        },
+        "SOURCES": [
+            {
+                "TABLE": "db_a.table_a",
+                "DSN_PARAMS": {
+                    "c": "4"
+                }
+            }
+        ]
+    })
+    assert ap.get_src_conn_str(config) == "a=1;b=2"
+    assert ap.get_src_conn_str(config, "db_a.table_a") == "a=1;b=3;c=4"
+    assert not ap.get_src_conn_str(config, "table_a")
+    config.sources[0].table_pointer.catalog_name = ""
+    assert ap.get_src_conn_str(config, "table_a") == "a=1;b=2;c=4"
+
+    config = ac.Config({
+        "TARGET_DSN_PARAMS": {
+            "a": "1",
+            "b": "2"
+        },
+        "TARGETS": [
+            {
+                "TABLE": "table_a",
+                "DSN_PARAMS": {
+                    "c": "4"
+                }
+            },
+            {
+                "TABLE": "table_b",
+                "DSN_PARAMS": {
+                    "b": "5",
+                    "c": "6"
+                }
+            },
+            {
+                "TABLE": "catalog_a.schema_a.table_a",
+                "DSN_PARAMS": {
+                    "b": "8",
+                    "c": "9"
+                }
+            },
+            {
+                "TABLE": "schema_a.table_a",
+                "DSN_PARAMS": {
+                    "b": "7",
+                    "c": "8"
+                }
+            }
+        ]
+    })
+    assert ap.get_tgt_conn_str(config) == "a=1;b=2"
+    assert ap.get_tgt_conn_str(config, "table_a") == "a=1;b=2;c=4"
+    assert ap.get_tgt_conn_str(config, "table_b") == "a=1;b=5;c=6"
+    assert ap.get_tgt_conn_str(config, "schema_a.table_a") == "a=1;b=7;c=8"
+    assert ap.get_tgt_conn_str(config, "catalog_a.schema_a.table_a") == "a=1;b=8;c=9"
+
 @pytest.mark.asyncio
 async def test_transfer(shared):
     config_path = "./tests/configs/config.accex"
