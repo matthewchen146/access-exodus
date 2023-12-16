@@ -7,6 +7,14 @@ import accex.process.core as ap
 def shared():
     return {}
 
+def test_parse_config(shared):
+    config_path = "./tests/configs/config.accex"
+    with open(config_path, "r") as config_file:
+        config = ac.parse_config(config_file.read())
+    assert config
+    config.validate()
+    shared["config"] = config
+
 def test_get_connection_string():
     config = ac.Config({
         "SOURCE_DSN_PARAMS": {
@@ -77,12 +85,32 @@ def test_get_connection_string():
     assert ap.get_tgt_conn_str(config, "catalog_a.schema_a.table_a") == "a=1;b=8;c=9"
 
 @pytest.mark.asyncio
+async def test_get_table_name_dict(shared):
+    assert shared.get("config")
+
+    config: ac.Config = shared["config"]
+
+    tgt_cur = await ap.open_tgt_connection(ap.get_tgt_conn_str(config))
+    success = True
+    try:
+        test_table_name = "__test_get_table_name_dict_table"
+        await tgt_cur.execute(f"CREATE TABLE IF NOT EXISTS {test_table_name} (id serial primary key)")
+        tgt_tables = await ap.get_table_name_dict(tgt_cur)
+        assert test_table_name in tgt_tables
+    except:
+        success = False
+    finally:
+        await ap.close_connections()
+    assert success
+
+    shared[test_get_table_name_dict.__name__] = True
+
+@pytest.mark.asyncio
 async def test_transfer(shared):
-    config_path = "./tests/configs/config.accex"
-    with open(config_path, "r") as config_file:
-        config = ac.parse_config(config_file.read())
-    
-    shared["config"] = config
+    assert shared.get(test_get_table_name_dict.__name__)
+    assert shared.get("config")
+
+    config: ac.Config = shared["config"]
 
     await ap.transfer(config)
     # verify that data matches
@@ -98,7 +126,7 @@ async def test_transfer(shared):
         # check target table created 
         tgt_tables = await ap.get_table_name_dict(tgt_cur)
         # FIXME: support schema in the future
-        assert src.target_pointer.table_name in tgt_tables
+        assert src.target_pointer.table_name in tgt_tables, f"\"{src.target_pointer.table_name}\" not found in table name dict {tgt_tables}"
         
         logging.info("checking target columns")
         # check columns created
