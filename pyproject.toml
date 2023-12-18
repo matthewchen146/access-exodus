@@ -1,10 +1,10 @@
 [tool.poetry]
-name = "access-exodus"
+name = "accex"
 version = "0.1.0"
 description = ""
 authors = ["Matthew <mchen146@ucsc.edu>"]
 license = "MIT"
-readme = "README.md"
+readme = "README.rst"
 
 [tool.poetry.dependencies]
 python = "3.11.*"
