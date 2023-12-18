@@ -208,6 +208,7 @@ async def transfer_table(config: ac.Config, src_table: ac.SourceTableBlock, tgt_
             await _tgt_cur.execute(f'DROP TABLE IF EXISTS {tgt_table_name} CASCADE')
             logger.info(f'creating target table \"{tgt_table_name}\"')
             await _tgt_cur.execute(f'CREATE TABLE IF NOT EXISTS {tgt_table_name} ({",".join([f"{cname} {ctype}" for cname, ctype in true_tgt_table_columns.items()])})')
+            logger.info(f"created table \"{tgt_table_name}\"")
             _transfer_context["created_tables"][tgt_table_name] = tgt_table_name
 
         driver_name = ""

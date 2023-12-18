@@ -160,7 +160,7 @@ class TargetColumnPointer(Serializeable[_TConfig]):
         return isinstance(__value, TargetColumnPointer) and self.table == __value.table and self.column_name == __value.column_name
 
     def __str__(self) -> str:
-        return f"{self.table.to_sql_str()}.{self.column_name}"
+        return f"{self.table and self.table.to_sql_str() + '.' or ''}{self.column_name}"
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.__str__()})"
@@ -250,56 +250,6 @@ class SourceColumnMapFunction(Serializeable[_TConfig]):
         self.from_row.validate(config)
         self.to_column.validate(config)
 
-
-class SourceTableBlockColumns(dict[str, TargetColumnPointer | SourceColumnMapFunction], Serializeable[_TConfig]):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._target_table: TargetTablePointer | None = None
-        self.target_table_deps = set()
-        for k, v in self.items():
-            self[k] = v
-
-    def __eq__(self, __value: object) -> bool:
-        if not isinstance(__value, SourceTableBlockColumns):
-            return False
-        return super().__eq__(__value)
-
-    def __setitem__(self, __key: Any, __value: Any) -> None:
-        # parse value of each record
-        __value = self.process_column(__value)
-        super().__setitem__(__key, __value)
-
-    def process_column(self, v: Any) -> Any:
-        if isinstance(v, TargetColumnPointer):
-            v.table = self._target_table
-        elif isinstance(v, SourceColumnMapFunction):
-            v.to_column.table = self._target_table
-            self.target_table_deps.add(self._target_table)
-        else:
-            parsed_source_column_value = parse_source_column_function(v)
-            v = parsed_source_column_value
-            # check dependent tables
-            if isinstance(v, SourceColumnMapFunction):
-                v.to_column.table = self._target_table
-                self.target_table_deps.add(v.with_column.table)
-            elif isinstance(v, TargetColumnPointer):
-                v.table = self._target_table
-        return v
-
-    def process_columns(self) -> None:
-        self.target_table_deps.clear()
-        for v in self.values():
-            self.process_column(v)
-    
-    @property
-    def target_table(self) -> TargetTablePointer | None:
-        return self._target_table
-    
-    @target_table.setter
-    def target_table(self, value: Any) -> None:
-        self._target_table = value
-        self.process_columns()
-
 class SourceDatabase(dict[str, object], Serializeable[_TConfig]):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -326,6 +276,57 @@ class SourceDatabases(dict[str, SourceDatabase], Serializeable[_TConfig]):
         for k, v in self.items():
             v.validate(config)
 
+class SourceTableBlockColumns(dict[str, TargetColumnPointer | SourceColumnMapFunction], Serializeable[_TConfig]):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._target_table_pointer: TargetTablePointer | None = None
+        self.target_table_deps = set()
+        for k, v in self.items():
+            self[k] = v
+
+    def __eq__(self, __value: object) -> bool:
+        if not isinstance(__value, SourceTableBlockColumns):
+            return False
+        return super().__eq__(__value)
+
+    def __setitem__(self, __key: Any, __value: Any) -> None:
+        # parse value of each record
+        __value = self.process_column(__value)
+        super().__setitem__(__key, __value)
+
+    def process_column(self, v: Any) -> Any:
+
+        if isinstance(v, TargetColumnPointer):
+            v.table = self._target_table_pointer
+        elif isinstance(v, SourceColumnMapFunction):
+            v.to_column.table = self._target_table_pointer
+            self.target_table_deps.add(v.with_column.table)
+        else:
+            v = parse_source_column_function(v)
+            v = self.process_column(v)
+            # # check dependent tables
+            # if isinstance(v, SourceColumnMapFunction):
+            #     v.to_column.table = self._target_table_pointer
+            #     # print(f"## adding dependency {str(v)} to {self}")
+            #     self.target_table_deps.add(v.with_column.table)
+            # elif isinstance(v, TargetColumnPointer):
+            #     v.table = self._target_table_pointer
+        return v
+
+    def process_columns(self) -> None:
+        self.target_table_deps.clear()
+        for k, v in self.items():
+            super().__setitem__(k, self.process_column(v))
+    
+    @property
+    def target_table_pointer(self) -> TargetTablePointer | None:
+        return self._target_table_pointer
+    
+    @target_table_pointer.setter
+    def target_table_pointer(self, value: Any) -> None:
+        self._target_table_pointer = value
+        self.process_columns()
+
 # contains database, target, and columns
 class SourceTableBlock(dict[str, object], Serializeable[_TConfig]):
     Columns = SourceTableBlockColumns
@@ -349,8 +350,7 @@ class SourceTableBlock(dict[str, object], Serializeable[_TConfig]):
             if not isinstance(__value, SourceTableBlockColumns):
                 __value: SourceTableBlockColumns = SourceTableBlockColumns(__value)
                 if self.target_pointer:
-                    __value.target_table = self.target_pointer
-                    __value.process_columns()
+                    __value.target_table_pointer = self.target_pointer
             super().__setitem__(__key, __value)
         elif __key == "TARGET_TABLE":
             if isinstance(__value, TargetTablePointer):
@@ -363,18 +363,16 @@ class SourceTableBlock(dict[str, object], Serializeable[_TConfig]):
             if "COLUMNS" in self:
                 c = self["COLUMNS"]
                 if not isinstance(c, SourceTableBlockColumns):
-                    # c = SourceTableBlockColumns(__value, self.target_table)
                     self["COLUMNS"] = c
                 else:
-                    c.target_table = self.target_pointer
-                    c.process_columns()
+                    c.target_table_pointer = self.target_pointer
         elif __key == "DSN_PARAMS":
             super().__setitem__(__key, __value if isinstance(__value, dict) else dict(__value))
         else:
             super().__setitem__(__key, __value)
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(table={self.table_pointer} ,target={self.target_pointer})"
+        return f"{self.__class__.__name__}(table={self.table_pointer}, target={self.target_pointer}{len(self.target_table_deps) and f', deps={self.target_table_deps}' or ''})"
 
     def __serial_repr__(self, dumper: yaml.Dumper, context: _TConfig) -> object:
         return dumper.represent_dict(sort_dict_with_list(self, ["TABLE", "TARGET_TABLE", "DSN_PARAMS", "COLUMNS"]))
