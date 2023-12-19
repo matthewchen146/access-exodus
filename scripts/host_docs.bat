@@ -1,0 +1,1 @@
+python -m http.server -d docs/build/html 8080
