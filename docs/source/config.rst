@@ -64,8 +64,9 @@ Basic Structure
 Sources Example
 ---------------
 
-For source tables, each ``COLUMNS`` record has key that represents the column name in the source table, and a value that represents the target column name in the target table. The target column name extends from the defined ``TARGET_TABLE`` record, in this case ``automobiles``.
-The identifiers in uppercase letters are keywords that the program reads.
+For source tables, each ``COLUMNS`` record has key that represents the column name in the source table, and a value that represents the target column name in the target table. 
+The target column name extends from the defined ``TARGET_TABLE`` record, in this case ``automobiles``.
+The identifiers in uppercase letters are keywords that should be followed.
 
 .. code-block:: yaml
    :dedent: 1
@@ -188,7 +189,7 @@ Environment variables can be defined with a dollar sign ``$VARIABLE_NAME`` or wi
     TARGET_DSN_PARAMS:
       Driver: PostgreSQL Unicode
       Server: localhost
-      Port: $POSTGRES_PORT
+      Port: $POSTGRES_PORT # 8000
       Database: postgres
       Uid: postgres
-      Pwd: ${POSTGRES_PASSWORD}
+      Pwd: ${POSTGRES_PASSWORD} # 123
