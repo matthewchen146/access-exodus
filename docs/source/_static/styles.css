@@ -1,0 +1,59 @@
+@import 'groundwork.css';
+
+.py.class,
+.py.exception,
+.py.function {
+    margin-top: 1rem;
+    padding: 1rem;
+    border-radius: 1rem;
+}
+
+.py.class {
+    background-color: rgb(19, 53, 24);
+}
+
+.py.exception {
+    background-color: rgb(61, 21, 21);
+}
+
+.py.function {
+    background-color: rgb(58, 49, 23);
+}
+
+.py.method {
+    margin-top: 1rem;
+    padding: .5rem;
+    border-radius: .5rem;
+    background-color: rgb(53, 58, 23);
+}
+
+/* yaml */
+
+.highlight-yaml .c1 {
+    color:rgb(76, 179, 91)
+}
+
+.highlight-yaml .nt {
+    color: rgb(81, 150, 230)
+}
+
+.highlight-yaml .l {
+    color: rgb(230, 160, 81)
+}
+
+.highlight-yaml .p {
+    color: rgb(255, 255, 255)
+}
+
+.highlight-yaml .w {
+    color: rgba(65, 65, 65, 0)
+}
+
+/* sh */
+.highlight-sh .nv {
+    color: rgb(81, 150, 230)
+}
+
+.highlight-sh .m {
+    color: rgb(240, 209, 37)
+}

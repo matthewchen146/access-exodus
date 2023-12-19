@@ -1,10 +1,10 @@
-.. Accex Exodus documentation master file, created by
+.. Access Exodus documentation master file, created by
    sphinx-quickstart on Wed Dec  6 18:28:18 2023.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Accex Exodus Documentation
-==========================
+Access Exodus Documentation
+===========================
 
 .. toctree::
    :maxdepth: 2
@@ -12,4 +12,4 @@ Accex Exodus Documentation
    
    usage
    config
-
+   modules
