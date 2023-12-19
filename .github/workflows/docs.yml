@@ -47,7 +47,7 @@ jobs:
     if: ${{ needs.check.outputs.cached != 'true' }}
     env:
       PYTHON_VERSION: "3.11"
-      POETRY_INSTALL_ARGS: --only docs
+      POETRY_INSTALL_ARGS: --with docs
     steps:
       - name: Checkout
         uses: actions/checkout@v4
